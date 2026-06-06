@@ -1238,7 +1238,7 @@ function SlidePreview({
   tc,
 }: {
   slide: Slide;
-  tc: { title: string; body: string; accent: string };
+  tc: { bg: string; title: string; body: string; accent: string; cardBg: string };
 }) {
   switch (slide.type) {
     case "title":
