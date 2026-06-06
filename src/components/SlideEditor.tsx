@@ -12,10 +12,13 @@ interface SlideEditorProps {
   onRegenerateSlide: (id: string) => void;
   onExportPPTX: () => void;
   onExportPDF: () => void;
+  onExportMarkdown?: () => void;
+  onExportNotes?: () => void;
   onStartOver: () => void;
   onReorderSlides?: (slides: Slide[]) => void;
   onAddSlide?: (type: SlideType, afterId?: string) => void;
   onDeleteSlide?: (id: string) => void;
+  onDuplicateSlide?: (id: string) => void;
 }
 
 const THEME_COLORS: Record<
@@ -60,10 +63,13 @@ export default function SlideEditor({
   onRegenerateSlide,
   onExportPPTX,
   onExportPDF,
+  onExportMarkdown,
+  onExportNotes,
   onStartOver,
   onReorderSlides,
   onAddSlide,
   onDeleteSlide,
+  onDuplicateSlide,
 }: SlideEditorProps) {
   const [selectedId, setSelectedId] = useState<string | null>(
     slides[0]?.id || null
@@ -232,6 +238,26 @@ export default function SlideEditor({
               )}
               PDF
             </button>
+            {onExportMarkdown && (
+              <button
+                onClick={onExportMarkdown}
+                disabled={exporting !== null}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                title="Export as Markdown"
+              >
+                MD
+              </button>
+            )}
+            {onExportNotes && (
+              <button
+                onClick={onExportNotes}
+                disabled={exporting !== null}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                title="Download Speaker Notes"
+              >
+                Notes
+              </button>
+            )}
             <button
               onClick={() => handleExport("pptx")}
               disabled={exporting !== null}
