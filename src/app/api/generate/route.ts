@@ -159,18 +159,8 @@ async function autoGenerateImages(
       );
 
       const seed = Math.floor(Math.random() * 1000000);
-      const imageUrl = `${POLLINATIONS_BASE}/${encodeURIComponent(prompt)}?width=1366&height=768&seed=${seed}&nologo=true&model=flux`;
-
-      // Verify the image URL is accessible
-      const headResponse = await fetch(imageUrl, {
-        method: "HEAD",
-        redirect: "manual",
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (headResponse.status === 200 || headResponse.status === 302 || headResponse.status === 307) {
-        slide.imageUrl = imageUrl;
-      }
+      // Pollinations URL IS the image — it generates on-the-fly when accessed
+      slide.imageUrl = `${POLLINATIONS_BASE}/${encodeURIComponent(prompt)}?width=1366&height=768&seed=${seed}&nologo=true`;
     } catch {
       // Skip failed image generation for this slide
     }

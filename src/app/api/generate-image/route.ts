@@ -6,8 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
  * Uses Pollinations.ai — a free, no-API-key image generation service.
  * No subscription or payment required.
  *
- * Alternative: Set OPENROUTER_IMAGE_MODEL env var to use OpenRouter instead
- * (requires paid subscription for image models).
+ * Pollinations generates images on-the-fly from the URL itself.
+ * The URL IS the image — no separate API call needed.
  */
 
 const POLLINATIONS_BASE = "https://image.pollinations.ai/prompt";
@@ -35,52 +35,19 @@ export async function POST(request: NextRequest) {
     }
     enhancedPrompt = `${enhancedPrompt}, high quality, professional, clean, no text, no watermark, presentation background`;
 
-    // Use Pollinations.ai — free, no API key needed
+    // Pollinations.ai — the URL itself serves the generated image
+    // No API key needed, no verification needed
     const w = width || 1366;
     const h = height || 768;
     const seed = Math.floor(Math.random() * 1000000);
 
-    // Pollinations returns a redirect to the generated image
-    // We need to follow the redirect to get the actual image URL
-    const pollinationsUrl = `${POLLINATIONS_BASE}/${encodeURIComponent(enhancedPrompt)}?width=${w}&height=${h}&seed=${seed}&nologo=true&model=flux`;
+    const imageUrl = `${POLLINATIONS_BASE}/${encodeURIComponent(enhancedPrompt)}?width=${w}&height=${h}&seed=${seed}&nologo=true`;
 
-    // Verify the URL is valid by making a HEAD request
-    const headResponse = await fetch(pollinationsUrl, {
-      method: "HEAD",
-      redirect: "manual",
-      signal: AbortSignal.timeout(15000),
+    return NextResponse.json({
+      imageUrl,
+      prompt: enhancedPrompt,
+      model: "pollinations/flux",
     });
-
-    // Pollinations returns 200 with the image directly, or a redirect
-    // Either way, the URL itself serves the image
-    if (headResponse.status === 200 || headResponse.status === 302 || headResponse.status === 307) {
-      return NextResponse.json({
-        imageUrl: pollinationsUrl,
-        prompt: enhancedPrompt,
-        model: "pollinations/flux",
-      });
-    }
-
-    // If HEAD fails, try GET
-    const getResponse = await fetch(pollinationsUrl, {
-      method: "GET",
-      signal: AbortSignal.timeout(30000),
-    });
-
-    if (getResponse.ok) {
-      return NextResponse.json({
-        imageUrl: pollinationsUrl,
-        prompt: enhancedPrompt,
-        model: "pollinations/flux",
-      });
-    }
-
-    return NextResponse.json(
-      {
-        error: "Image generation service is temporarily unavailable. Please try again.",
-      },
-      { status: 502 }
-    );
   } catch (err) {
     console.error("Image generation error:", err);
     return NextResponse.json(
