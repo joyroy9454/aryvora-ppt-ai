@@ -56,7 +56,7 @@ ${slide.rightCol ? `Right column: ${JSON.stringify(slide.rightCol)}` : ""}`;
         "X-Title": "Aryvora PPT AI",
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
+        model: process.env.OPENROUTER_MODEL || "openrouter/owl-alpha",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
