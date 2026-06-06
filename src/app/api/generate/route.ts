@@ -133,23 +133,20 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ---------- Auto-generate images for slides ----------
+// ---------- Auto-generate images for slides (free via Pollinations.ai) ----------
 async function autoGenerateImages(
   slides: Slide[],
   analysis: { keywords: string[]; suggestedTitle: string },
   templateId: TemplateId
 ): Promise<Slide[]> {
-  const imageModel =
-    process.env.OPENROUTER_IMAGE_MODEL || "stabilityai/stable-diffusion-3";
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return slides;
+  const POLLINATIONS_BASE = "https://image.pollinations.ai/prompt";
 
   // Find slides that need images
   const imageSlides = slides.filter(
     (s) => shouldGenerateImage(s.type) && !s.imageUrl
   );
 
-  // Limit to 3 images per presentation to avoid rate limits
+  // Limit to 3 images per presentation
   const toGenerate = imageSlides.slice(0, 3);
 
   for (const slide of toGenerate) {
@@ -161,66 +158,17 @@ async function autoGenerateImages(
         templateId
       );
 
-      const response = await fetch(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-            "HTTP-Referer": "https://aryvora.com",
-            "X-Title": "Aryvora PPT AI",
-          },
-          body: JSON.stringify({
-            model: imageModel,
-            messages: [
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "text",
-                    text: `Generate an image: ${prompt}`,
-                  },
-                ],
-              },
-            ],
-            modalities: ["image", "text"],
-          }),
-        }
-      );
+      const seed = Math.floor(Math.random() * 1000000);
+      const imageUrl = `${POLLINATIONS_BASE}/${encodeURIComponent(prompt)}?width=1366&height=768&seed=${seed}&nologo=true&model=flux`;
 
-      if (!response.ok) continue;
+      // Verify the image URL is accessible
+      const headResponse = await fetch(imageUrl, {
+        method: "HEAD",
+        redirect: "manual",
+        signal: AbortSignal.timeout(15000),
+      });
 
-      const data = await response.json();
-      let imageUrl: string | null = null;
-
-      // Try multiple response formats
-      if (data.images?.[0]?.url) {
-        imageUrl = data.images[0].url;
-      } else if (data.choices?.[0]?.message?.content_blocks) {
-        for (const block of data.choices[0].message.content_blocks) {
-          if (block.image_url?.url) {
-            imageUrl = block.image_url.url;
-            break;
-          }
-        }
-      } else if (typeof data.choices?.[0]?.message?.content === "string") {
-        const content = data.choices[0].message.content;
-        if (
-          content.startsWith("http") &&
-          (content.includes(".png") ||
-            content.includes(".jpg") ||
-            content.includes(".webp"))
-        ) {
-          imageUrl = content.trim();
-        }
-        const mdMatch = content.match(
-          /!\[.*?\]\((https?:\/\/[^)]+\.(?:png|jpg|webp|gif))\)/i
-        );
-        if (mdMatch) imageUrl = mdMatch[1];
-      }
-
-      if (imageUrl) {
+      if (headResponse.status === 200 || headResponse.status === 302 || headResponse.status === 307) {
         slide.imageUrl = imageUrl;
       }
     } catch {
