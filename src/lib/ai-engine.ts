@@ -5,13 +5,9 @@
 
 import type {
   AIAnalysis,
-  TopicCategory,
-  AudienceType,
-  ToneType,
   Slide,
   SlideType,
   TemplateId,
-  GenerationProgress,
 } from "@/types";
 
 const MODEL = process.env.OPENROUTER_MODEL || "openrouter/owl-alpha";

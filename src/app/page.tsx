@@ -461,9 +461,9 @@ function LandingScreen({
         </div>
 
         {/* Input Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50">
           {/* Input Mode Tabs */}
-          <div className="flex border-b border-slate-100 overflow-x-auto">
+          <div className="flex border-b border-slate-100 overflow-x-auto rounded-t-2xl">
             {INPUT_MODES.map((mode) => (
               <button
                 key={mode.mode}

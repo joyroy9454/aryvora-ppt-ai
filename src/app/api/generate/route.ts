@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Slide, TemplateId, InputMode, GenerationProgress } from "@/types";
+import type { Slide, TemplateId, InputMode } from "@/types";
 import {
   analyzeInput,
   generateSlides,
   generateSpeakerNotes,
+  rewriteSlidesStyle,
 } from "@/lib/ai-engine";
 
 export async function POST(request: NextRequest) {
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
     let analysis;
     try {
       analysis = await analyzeInput(inputText, inputMode);
-    } catch (err) {
+    } catch {
       // Fallback analysis
       analysis = {
         category: "general" as const,
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
         templateId || "corporate",
         inputMode
       );
-    } catch (err) {
+    } catch {
       // Fallback slides
       slides = generateFallbackSlides(analysis);
     }
@@ -119,16 +120,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function generateFallbackSlides(
-  analysis: {
-    suggestedTitle: string;
-    suggestedSubtitle: string;
-    suggestedSlideCount: number;
-    outline: string[];
-  },
-  count?: number
-): Slide[] {
-  const total = count || analysis.suggestedSlideCount;
+function generateFallbackSlides(analysis: {
+  suggestedTitle: string;
+  suggestedSubtitle: string;
+  suggestedSlideCount: number;
+  outline: string[];
+}): Slide[] {
+  const total = analysis.suggestedSlideCount;
   const slides: Slide[] = [
     {
       id: `slide-${Date.now()}-0`,
@@ -162,13 +160,4 @@ function generateFallbackSlides(
   });
 
   return slides;
-}
-
-async function rewriteSlidesStyle(
-  slides: Slide[],
-  style: "academic" | "business" | "casual"
-): Promise<Slide[]> {
-  // Import dynamically to avoid circular deps
-  const { rewriteSlidesStyle: rewrite } = await import("@/lib/ai-engine");
-  return rewrite(slides, style);
 }

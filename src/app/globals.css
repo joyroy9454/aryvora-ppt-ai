@@ -1,7 +1,3 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 @import "tailwindcss";
 
 @theme {
@@ -63,7 +59,7 @@ body {
   }
 }
 
-/* Progress bar */
+/* Progress bar animation */
 @keyframes progress {
   0% {
     width: 0%;
@@ -124,4 +120,12 @@ body {
 /* Drag ghost */
 .dragging {
   opacity: 0.5;
+}
+
+/* Print styles for PDF */
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

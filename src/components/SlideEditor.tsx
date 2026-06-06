@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { Slide, SlideType } from "@/types";
 import { SLIDE_TEMPLATES } from "@/types";
 
@@ -814,6 +814,195 @@ export default function SlideEditor({
                         />
                       </div>
                     )}
+
+                    {/* Process Steps */}
+                    {selectedSlide.type === "process" && (
+                      <div>
+                        <label className="text-xs font-medium text-slate-500 mb-1 block">
+                          Process Steps
+                        </label>
+                        <div className="space-y-2">
+                          {(selectedSlide.process || []).map((item, i) => (
+                            <div key={i} className="flex items-start gap-2">
+                              <span className="text-xs text-slate-400 w-4 mt-2">
+                                {item.step}.
+                              </span>
+                              <div className="flex-1 space-y-1">
+                                <input
+                                  type="text"
+                                  value={item.title}
+                                  onChange={(e) => {
+                                    const newProcess = [
+                                      ...(selectedSlide.process || []),
+                                    ];
+                                    newProcess[i] = {
+                                      ...newProcess[i],
+                                      title: e.target.value,
+                                    };
+                                    onUpdateSlide(selectedSlide.id, {
+                                      process: newProcess,
+                                    });
+                                  }}
+                                  placeholder="Step title"
+                                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                                />
+                                <input
+                                  type="text"
+                                  value={item.description}
+                                  onChange={(e) => {
+                                    const newProcess = [
+                                      ...(selectedSlide.process || []),
+                                    ];
+                                    newProcess[i] = {
+                                      ...newProcess[i],
+                                      description: e.target.value,
+                                    };
+                                    onUpdateSlide(selectedSlide.id, {
+                                      process: newProcess,
+                                    });
+                                  }}
+                                  placeholder="Description"
+                                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                                />
+                              </div>
+                              <button
+                                onClick={() => {
+                                  const newProcess =
+                                    selectedSlide.process?.filter(
+                                      (_, j) => j !== i
+                                    ) || [];
+                                  onUpdateSlide(selectedSlide.id, {
+                                    process: newProcess,
+                                  });
+                                }}
+                                className="text-slate-400 hover:text-red-500 text-sm mt-2"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => {
+                              const newProcess = [
+                                ...(selectedSlide.process || []),
+                                {
+                                  step: (selectedSlide.process?.length || 0) + 1,
+                                  title: "",
+                                  description: "",
+                                },
+                              ];
+                              onUpdateSlide(selectedSlide.id, {
+                                process: newProcess,
+                              });
+                            }}
+                            className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                          >
+                            + Add step
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Chart Data */}
+                    {selectedSlide.type === "chart" && (
+                      <div>
+                        <label className="text-xs font-medium text-slate-500 mb-1 block">
+                          Chart Data
+                        </label>
+                        <div className="space-y-2">
+                          {(selectedSlide.chart || []).map((item, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={item.label}
+                                onChange={(e) => {
+                                  const newChart = [
+                                    ...(selectedSlide.chart || []),
+                                  ];
+                                  newChart[i] = {
+                                    ...newChart[i],
+                                    label: e.target.value,
+                                  };
+                                  onUpdateSlide(selectedSlide.id, {
+                                    chart: newChart,
+                                  });
+                                }}
+                                placeholder="Label"
+                                className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                              />
+                              <input
+                                type="number"
+                                value={item.value}
+                                onChange={(e) => {
+                                  const newChart = [
+                                    ...(selectedSlide.chart || []),
+                                  ];
+                                  newChart[i] = {
+                                    ...newChart[i],
+                                    value: Number(e.target.value) || 0,
+                                  };
+                                  onUpdateSlide(selectedSlide.id, {
+                                    chart: newChart,
+                                  });
+                                }}
+                                placeholder="Value"
+                                className="w-20 px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                              />
+                              <button
+                                onClick={() => {
+                                  const newChart =
+                                    selectedSlide.chart?.filter(
+                                      (_, j) => j !== i
+                                    ) || [];
+                                  onUpdateSlide(selectedSlide.id, {
+                                    chart: newChart,
+                                  });
+                                }}
+                                className="text-slate-400 hover:text-red-500 text-sm"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => {
+                              const newChart = [
+                                ...(selectedSlide.chart || []),
+                                { label: "", value: 0 },
+                              ];
+                              onUpdateSlide(selectedSlide.id, {
+                                chart: newChart,
+                              });
+                            }}
+                            className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                          >
+                            + Add data point
+                          </button>
+                        </div>
+                        <div className="mt-2">
+                          <label className="text-xs text-slate-500">Chart Type</label>
+                          <div className="flex gap-2 mt-1">
+                            {(["bar", "pie", "line"] as const).map((ct) => (
+                              <button
+                                key={ct}
+                                onClick={() =>
+                                  onUpdateSlide(selectedSlide.id, {
+                                    chartType: ct,
+                                  })
+                                }
+                                className={`px-2.5 py-1 text-xs rounded-lg border capitalize ${
+                                  selectedSlide.chartType === ct
+                                    ? "border-brand-500 bg-brand-50 text-brand-700"
+                                    : "border-slate-200 text-slate-500"
+                                }`}
+                              >
+                                {ct}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1155,6 +1344,125 @@ function SlidePreview({
         </div>
       );
 
+    case "process":
+      return (
+        <div className="h-full flex flex-col">
+          <h2 className={`text-lg md:text-xl font-bold ${tc.title} mb-4`}>
+            {slide.heading}
+          </h2>
+          <div className="flex-1">
+            {slide.process?.map((item, i) => (
+              <div key={i} className="flex items-start gap-3 mb-3">
+                <div
+                  className={`w-6 h-6 rounded-full ${tc.accent.replace("text-", "bg-")} text-white flex items-center justify-center text-xs font-bold shrink-0`}
+                >
+                  {item.step}
+                </div>
+                <div>
+                  <div className={`text-sm font-semibold ${tc.title}`}>
+                    {item.title}
+                  </div>
+                  <div className={`text-xs ${tc.body}`}>
+                    {item.description}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case "chart":
+      return (
+        <div className="h-full flex flex-col">
+          <h2 className={`text-lg md:text-xl font-bold ${tc.title} mb-4`}>
+            {slide.heading}
+          </h2>
+          <div className="flex-1 flex items-end justify-center gap-4 px-8">
+            {slide.chart?.map((item, i) => {
+              const maxVal = Math.max(...(slide.chart?.map((c) => c.value) || [100]));
+              const height = maxVal > 0 ? (item.value / maxVal) * 100 : 0;
+              return (
+                <div key={i} className="flex flex-col items-center gap-2">
+                  <div
+                    className={`w-12 ${tc.accent.replace("text-", "bg-")} rounded-t-md`}
+                    style={{ height: `${Math.max(height, 5)}%`, minHeight: "8px" }}
+                  />
+                  <div className={`text-xs ${tc.body} text-center`}>
+                    {item.label}
+                  </div>
+                  <div className={`text-xs font-bold ${tc.title}`}>
+                    {item.value}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+
+    case "divider":
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-center">
+          <h1 className={`text-2xl md:text-3xl font-bold ${tc.title} mb-3`}>
+            {slide.heading}
+          </h1>
+          <div
+            className={`w-16 h-1 ${tc.accent.replace("text-", "bg-")} rounded-full mb-3`}
+          />
+          {slide.sub && (
+            <p className={`text-sm ${tc.accent}`}>{slide.sub}</p>
+          )}
+        </div>
+      );
+
+    case "summary":
+      return (
+        <div className="h-full flex flex-col">
+          <h2 className={`text-lg md:text-xl font-bold ${tc.title} mb-4`}>
+            {slide.heading}
+          </h2>
+          {slide.bullets && slide.bullets.length > 0 && (
+            <ul className="space-y-3 flex-1">
+              {slide.bullets.map((b, i) => (
+                <li
+                  key={i}
+                  className={`text-sm md:text-base ${tc.body} flex items-start gap-3`}
+                >
+                  <span
+                    className={`mt-0.5 w-5 h-5 rounded-full ${tc.accent.replace("text-", "bg-")} text-white flex items-center justify-center text-xs font-bold shrink-0`}
+                  >
+                    {i + 1}
+                  </span>
+                  {b}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      );
+
+    case "qa":
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-center">
+          <h1 className={`text-2xl md:text-3xl font-bold ${tc.title} mb-4`}>
+            {slide.heading}
+          </h1>
+          {slide.bullets && slide.bullets.length > 0 && (
+            <div className="space-y-2">
+              {slide.bullets.map((b, i) => (
+                <p
+                  key={i}
+                  className={`text-sm md:text-base ${tc.body} opacity-70`}
+                >
+                  {b}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+
     case "closing":
       return (
         <div className="flex flex-col items-center justify-center h-full text-center">
@@ -1205,17 +1513,34 @@ function PreviewMode({
   const tc = THEME_COLORS[theme] || THEME_COLORS.corporate;
   const slide = slides[current];
 
-  const goNext = () => setCurrent((c) => Math.min(c + 1, slides.length - 1));
-  const goPrev = () => setCurrent((c) => Math.max(c - 1, 0));
+  const goNext = useCallback(() => {
+    setCurrent((c) => Math.min(c + 1, slides.length - 1));
+  }, [slides.length]);
 
-  // Keyboard navigation
-  if (typeof window !== "undefined") {
-    window.onkeydown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === " ") goNext();
-      if (e.key === "ArrowLeft") goPrev();
-      if (e.key === "Escape") onClose();
+  const goPrev = useCallback(() => {
+    setCurrent((c) => Math.max(c - 1, 0));
+  }, []);
+
+  // Keyboard navigation with proper cleanup
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === " ") {
+        e.preventDefault();
+        goNext();
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goPrev();
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
     };
-  }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [goNext, goPrev, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
