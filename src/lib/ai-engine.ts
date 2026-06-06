@@ -1,6 +1,7 @@
 // ============================================================
-// AI Intelligence Layer — Phase 1: Core Generation Quality
+// AI Intelligence Layer — Phase 2: Visual Intelligence
 // Per-slide generation, content enhancement, quality assurance
+// Visual metadata: image suggestions, visual types per topic
 // ============================================================
 
 import type {
@@ -274,6 +275,12 @@ export interface OutlineSection {
   suggestedSlideTypes: SlideType[];
 }
 
+// Image position type for visual layout
+export type ImagePosition = "left" | "right" | "background" | "none";
+
+// Visual type for the kind of visual element to use
+export type VisualType = "image" | "chart" | "diagram" | "icon" | "none";
+
 export interface SlidePlan {
   index: number;
   type: SlideType;
@@ -281,7 +288,383 @@ export interface SlidePlan {
   sectionTitle: string;
   keyPoints: string[];
   notes: string;
+  // Visual intelligence fields (Phase 2):
+  needsImage: boolean;
+  imageKeyword: string;      // Search keyword for image (e.g. "mountain landscape sunset")
+  imagePosition: ImagePosition;
+  visualType: VisualType;
+  visualCaption: string;     // Optional caption for the visual
 }
+
+// ============================================================
+// Visual Strategy Helper
+// ============================================================
+
+export interface VisualStrategy {
+  preferredVisualType: VisualType;
+  imageStyle: string;        // Description of the image style
+  useBackgroundImage: boolean;
+  useIcons: boolean;
+  useCharts: boolean;
+  useDiagrams: boolean;
+  captionStyle: string;      // How captions should be written
+}
+
+/**
+ * Returns visual strategy guidelines per topic category.
+ * This drives how suggestVisualsForPlan() decides what visuals to recommend.
+ */
+export function getVisualStrategyForCategory(category: TopicCategory | string): VisualStrategy {
+  switch (category) {
+    case "science":
+    case "health":
+      return {
+        preferredVisualType: "image",
+        imageStyle: "real-world photography — nature, laboratories, medical, landscapes, scientific phenomena",
+        useBackgroundImage: false,
+        useIcons: true,
+        useCharts: true,
+        useDiagrams: true,
+        captionStyle: "factual, descriptive captions explaining what the image shows and its relevance",
+      };
+
+    case "nature":
+    case "geography":
+    case "environment":
+      return {
+        preferredVisualType: "image",
+        imageStyle: "stunning real-world photography — landscapes, wildlife, natural phenomena, aerial views",
+        useBackgroundImage: true,
+        useIcons: false,
+        useCharts: false,
+        useDiagrams: false,
+        captionStyle: "evocative captions that connect the natural imagery to the slide's message",
+      };
+
+    case "business":
+    case "finance":
+      return {
+        preferredVisualType: "chart",
+        imageStyle: "professional imagery — clean office settings, business meetings, data visualizations, corporate environments",
+        useBackgroundImage: false,
+        useIcons: true,
+        useCharts: true,
+        useDiagrams: true,
+        captionStyle: "data-driven captions highlighting key metrics or business insights",
+      };
+
+    case "technology":
+      return {
+        preferredVisualType: "diagram",
+        imageStyle: "modern tech imagery — circuit boards, data centers, code screens, futuristic interfaces, architecture diagrams",
+        useBackgroundImage: false,
+        useIcons: true,
+        useCharts: true,
+        useDiagrams: true,
+        captionStyle: "technical captions explaining system architecture, flow, or technology concepts",
+      };
+
+    case "education":
+      return {
+        preferredVisualType: "diagram",
+        imageStyle: "clean, simple visuals — classroom settings, educational diagrams, student-friendly illustrations, chalkboard/whiteboard",
+        useBackgroundImage: false,
+        useIcons: true,
+        useCharts: false,
+        useDiagrams: true,
+        captionStyle: "educational captions that explain concepts clearly and simply",
+      };
+
+    case "marketing":
+    case "creative":
+      return {
+        preferredVisualType: "image",
+        imageStyle: "vibrant, eye-catching imagery — bold colors, creative compositions, lifestyle photography, product shots",
+        useBackgroundImage: true,
+        useIcons: true,
+        useCharts: false,
+        useDiagrams: false,
+        captionStyle: "engaging, punchy captions that reinforce the marketing message",
+      };
+
+    case "general":
+    default:
+      return {
+        preferredVisualType: "image",
+        imageStyle: "balanced, professional imagery — versatile stock photos, abstract backgrounds, conceptual visuals",
+        useBackgroundImage: false,
+        useIcons: true,
+        useCharts: true,
+        useDiagrams: false,
+        captionStyle: "neutral, informative captions that support the slide content",
+      };
+  }
+}
+
+// ============================================================
+// Suggest Visuals for Plan
+// ============================================================
+
+/**
+ * Takes the slide plans and analysis, returns enhanced plans with visual metadata.
+ * Decides which slides need images, generates descriptive keywords, chooses visual types.
+ */
+export function suggestVisualsForPlan(
+  plans: SlidePlan[],
+  analysis: ExtendedAnalysis
+): SlidePlan[] {
+  const strategy = getVisualStrategyForCategory(analysis.category);
+  const totalSlides = plans.length;
+  const keywords = analysis.keywords || [];
+
+  // Slides that should NEVER have images
+  const noImageTypes: Set<SlideType> = new Set(["title", "closing", "qa", "blank"]);
+
+  // Slides that are CANDIDATES for images (not every slide should have one)
+  const imageCandidateTypes: Set<SlideType> = new Set([
+    "content", "two-column", "comparison", "divider", "image-left", "image-right"
+  ]);
+
+  // Slides that should use charts/diagrams instead of photos
+  const chartTypes: Set<SlideType> = new Set(["statistic", "chart"]);
+  const diagramTypes: Set<SlideType> = new Set(["process", "timeline"]);
+
+  // Track used positions to ensure variety
+  const positions: ImagePosition[] = ["left", "right", "background"];
+  let positionIndex = 0;
+
+  // Track which slides get images (we want ~40-60% of eligible slides)
+  const eligibleIndices: number[] = [];
+  plans.forEach((plan, idx) => {
+    if (
+      !noImageTypes.has(plan.type) &&
+      plan.heading &&
+      plan.heading.trim().length > 0 &&
+      idx > 0 && // Skip title
+      idx < totalSlides - 1 // Skip closing
+    ) {
+      eligibleIndices.push(idx);
+    }
+  });
+
+  // Select ~50% of eligible slides for images, prioritizing content slides
+  const imageCount = Math.max(1, Math.round(eligibleIndices.length * 0.5));
+  const selectedIndices = new Set<number>();
+
+  // Always include the first content slide if eligible
+  if (eligibleIndices.length > 0) {
+    selectedIndices.add(eligibleIndices[0]);
+  }
+
+  // Spread remaining selections evenly
+  if (eligibleIndices.length > 1 && imageCount > 1) {
+    const step = eligibleIndices.length / (imageCount - 1);
+    for (let i = 1; i < imageCount && i * step < eligibleIndices.length; i++) {
+      const idx = eligibleIndices[Math.min(Math.round(i * step), eligibleIndices.length - 1)];
+      selectedIndices.add(idx);
+    }
+  }
+
+  return plans.map((plan, idx) => {
+    const enhanced: SlidePlan = { ...plan };
+
+    // Title, closing, QA, blank slides: no images
+    if (noImageTypes.has(plan.type)) {
+      enhanced.needsImage = false;
+      enhanced.imageKeyword = "";
+      enhanced.imagePosition = "none";
+      enhanced.visualType = "none";
+      enhanced.visualCaption = "";
+      return enhanced;
+    }
+
+    // Statistic/chart slides: use chart visual type
+    if (chartTypes.has(plan.type)) {
+      enhanced.needsImage = false;
+      enhanced.imageKeyword = "";
+      enhanced.imagePosition = "none";
+      enhanced.visualType = "chart";
+      enhanced.visualCaption = `Data visualization for: ${plan.heading}`;
+      return enhanced;
+    }
+
+    // Process/timeline slides: use diagram visual type
+    if (diagramTypes.has(plan.type)) {
+      enhanced.needsImage = false;
+      enhanced.imageKeyword = "";
+      enhanced.imagePosition = "none";
+      enhanced.visualType = "diagram";
+      enhanced.visualCaption = `Flow diagram for: ${plan.heading}`;
+      return enhanced;
+    }
+
+    // Quote slides: optional background image for impact
+    if (plan.type === "quote") {
+      if (strategy.useBackgroundImage && idx % 4 === 0) {
+        enhanced.needsImage = true;
+        enhanced.imageKeyword = generateImageKeyword(plan, keywords, strategy, true);
+        enhanced.imagePosition = "background";
+        enhanced.visualType = "image";
+        enhanced.visualCaption = "";
+      } else {
+        enhanced.needsImage = false;
+        enhanced.imageKeyword = "";
+        enhanced.imagePosition = "none";
+        enhanced.visualType = "icon";
+        enhanced.visualCaption = "";
+      }
+      return enhanced;
+    }
+
+    // Divider slides: background image for visual impact
+    if (plan.type === "divider") {
+      if (strategy.useBackgroundImage) {
+        enhanced.needsImage = true;
+        enhanced.imageKeyword = generateImageKeyword(plan, keywords, strategy, true);
+        enhanced.imagePosition = "background";
+        enhanced.visualType = "image";
+        enhanced.visualCaption = "";
+      } else {
+        enhanced.needsImage = false;
+        enhanced.imageKeyword = "";
+        enhanced.imagePosition = "none";
+        enhanced.visualType = "icon";
+        enhanced.visualCaption = "";
+      }
+      return enhanced;
+    }
+
+    // Summary slide: no image, keep it clean
+    if (plan.type === "summary") {
+      enhanced.needsImage = false;
+      enhanced.imageKeyword = "";
+      enhanced.imagePosition = "none";
+      enhanced.visualType = "icon";
+      enhanced.visualCaption = "";
+      return enhanced;
+    }
+
+    // Content slides and others: use selected indices
+    if (selectedIndices.has(idx) && imageCandidateTypes.has(plan.type)) {
+      const position = positions[positionIndex % positions.length];
+      positionIndex++;
+
+      enhanced.needsImage = true;
+      enhanced.imageKeyword = generateImageKeyword(plan, keywords, strategy, false);
+      enhanced.imagePosition = position;
+      enhanced.visualType = strategy.preferredVisualType === "none" ? "image" : strategy.preferredVisualType;
+      enhanced.visualCaption = generateCaption(plan, strategy);
+    } else {
+      // No image needed, but may use icons
+      enhanced.needsImage = false;
+      enhanced.imageKeyword = "";
+      enhanced.imagePosition = "none";
+      enhanced.visualType = strategy.useIcons ? "icon" : "none";
+      enhanced.visualCaption = "";
+    }
+
+    return enhanced;
+  });
+}
+
+/**
+ * Generates a specific, descriptive image search keyword for a slide.
+ */
+function generateImageKeyword(
+  plan: SlidePlan,
+  globalKeywords: string[],
+  strategy: VisualStrategy,
+  isBackground: boolean
+): string {
+  const heading = plan.heading || "";
+  const section = plan.sectionTitle || "";
+  const keyPoints = plan.keyPoints || [];
+
+  // Build a descriptive keyword from the slide content
+  const mainTopic = heading.length > 3 ? heading : section;
+
+  // Extract the most meaningful words from the heading
+  const stopWords = new Set([
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+    "being", "have", "has", "had", "do", "does", "did", "will", "would",
+    "could", "should", "may", "might", "shall", "can", "need", "dare",
+    "ought", "used", "this", "that", "these", "those", "it", "its",
+    "our", "your", "their", "my", "his", "her", "we", "they", "you", "i",
+    "about", "into", "through", "during", "before", "after", "above",
+    "below", "between", "under", "over", "again", "further", "then", "once",
+    "here", "there", "when", "where", "why", "how", "all", "each", "every",
+    "both", "few", "more", "most", "other", "some", "such", "no", "not",
+    "only", "own", "same", "so", "than", "too", "very", "just", "because",
+    "as", "until", "while", "although", "however", "also", "still",
+  ]);
+
+  const meaningfulWords = mainTopic
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stopWords.has(w))
+    .slice(0, 3);
+
+  // If we have meaningful words from the heading, use them
+  if (meaningfulWords.length > 0) {
+    const baseKeyword = meaningfulWords.join(" ");
+
+    if (isBackground) {
+      // Background images: broader, more atmospheric
+      const bgModifiers = ["wide", "panoramic", "abstract", "atmospheric"];
+      const modifier = bgModifiers[Math.abs(hashString(mainTopic)) % bgModifiers.length];
+      return `${modifier} ${baseKeyword} ${strategy.imageStyle.split("—")[0].trim()}`;
+    }
+
+    // Regular images: specific and descriptive
+    return `${baseKeyword} ${strategy.imageStyle.split("—")[0].trim()}`;
+  }
+
+  // Fallback: use global keywords
+  if (globalKeywords.length > 0) {
+    const kwIdx = Math.abs(hashString(mainTopic)) % globalKeywords.length;
+    return `${globalKeywords[kwIdx]} ${strategy.imageStyle.split("—")[0].trim()}`;
+  }
+
+  // Last resort
+  return strategy.imageStyle.split("—")[0].trim();
+}
+
+/**
+ * Generates a caption for a visual based on the slide content and strategy.
+ */
+function generateCaption(plan: SlidePlan, strategy: VisualStrategy): string {
+  const heading = plan.heading || "";
+  const keyPoints = plan.keyPoints || [];
+
+  if (keyPoints.length > 0) {
+    // Use the first key point as inspiration for the caption
+    const firstPoint = keyPoints[0];
+    if (firstPoint.length < 60) {
+      return `${firstPoint} — illustrating ${heading.toLowerCase()}`;
+    }
+  }
+
+  return `${strategy.captionStyle}. Visual representation of ${heading.toLowerCase()}`;
+}
+
+/**
+ * Simple string hash for deterministic but varied selection.
+ */
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+// ============================================================
+// Generate Outline (with visual intelligence)
+// ============================================================
 
 export async function generateOutline(
   inputText: string,
@@ -355,16 +738,40 @@ Create a detailed slide-by-slide plan. Each slide should have a clear purpose an
     const raw = await callAI(systemPrompt, userPrompt);
     const result = parseJSON(raw);
     const plans: SlidePlan[] = Array.isArray(result) ? result : result.slides || [];
-    
+
+    // Add default visual fields to AI-generated plans
+    const plansWithVisuals = plans.map((plan) => ensureVisualFields(plan));
+
     // Validate and fix slide count
-    if (plans.length !== analysis.suggestedSlideCount) {
-      return createDefaultSlidePlan(analysis);
+    if (plansWithVisuals.length !== analysis.suggestedSlideCount) {
+      return suggestVisualsForPlan(createDefaultSlidePlan(analysis), analysis);
     }
-    
-    return plans;
+
+    // Apply visual intelligence
+    return suggestVisualsForPlan(plansWithVisuals, analysis);
   } catch {
-    return createDefaultSlidePlan(analysis);
+    return suggestVisualsForPlan(createDefaultSlidePlan(analysis), analysis);
   }
+}
+
+/**
+ * Ensures a SlidePlan has all visual fields populated with defaults.
+ * Used when parsing AI output that doesn't include the new fields.
+ */
+function ensureVisualFields(plan: Partial<SlidePlan> & { index: number; type: SlideType; heading: string }): SlidePlan {
+  return {
+    index: plan.index,
+    type: plan.type,
+    heading: plan.heading || "",
+    sectionTitle: plan.sectionTitle || "",
+    keyPoints: plan.keyPoints || [],
+    notes: plan.notes || "",
+    needsImage: plan.needsImage ?? false,
+    imageKeyword: plan.imageKeyword ?? "",
+    imagePosition: plan.imagePosition ?? "none",
+    visualType: plan.visualType ?? "none",
+    visualCaption: plan.visualCaption ?? "",
+  };
 }
 
 function createDefaultSlidePlan(analysis: ExtendedAnalysis): SlidePlan[] {
@@ -379,6 +786,11 @@ function createDefaultSlidePlan(analysis: ExtendedAnalysis): SlidePlan[] {
     sectionTitle: "Title",
     keyPoints: [],
     notes: `Welcome the audience and introduce "${analysis.suggestedTitle}".`,
+    needsImage: false,
+    imageKeyword: "",
+    imagePosition: "none",
+    visualType: "none",
+    visualCaption: "",
   });
 
   // Agenda slide
@@ -391,6 +803,11 @@ function createDefaultSlidePlan(analysis: ExtendedAnalysis): SlidePlan[] {
       ? analysis.outline.slice(0, 5)
       : ["Introduction", "Key Topics", "Analysis", "Recommendations", "Next Steps"],
     notes: "Walk the audience through what we'll cover today.",
+    needsImage: false,
+    imageKeyword: "",
+    imagePosition: "none",
+    visualType: "icon",
+    visualCaption: "",
   });
 
   // Content slides
@@ -398,7 +815,7 @@ function createDefaultSlidePlan(analysis: ExtendedAnalysis): SlidePlan[] {
   for (let i = 0; i < contentCount; i++) {
     const sectionTitle = analysis.outline[i % analysis.outline.length] || `Key Point ${i + 1}`;
     const isLast = i === contentCount - 1;
-    
+
     let type: SlideType = "content";
     if (isLast) {
       type = "summary";
@@ -423,22 +840,36 @@ function createDefaultSlidePlan(analysis: ExtendedAnalysis): SlidePlan[] {
         `Actionable takeaway`,
       ],
       notes: `Explain the key points about ${sectionTitle.toLowerCase()}.`,
+      needsImage: false,
+      imageKeyword: "",
+      imagePosition: "none",
+      visualType: "none",
+      visualCaption: "",
     };
 
     if (type === "statistic") {
       plan.keyPoints = ["85% improvement", "+42% growth", "1.2M users"];
       plan.notes = "Present the key metrics and what they mean.";
+      plan.visualType = "chart";
+      plan.visualCaption = `Data visualization for: ${sectionTitle}`;
     } else if (type === "quote") {
       plan.keyPoints = [];
       plan.notes = "Share this impactful quote and explain its relevance.";
+      plan.visualType = "icon";
     } else if (type === "summary") {
       plan.heading = "Key Takeaways";
       plan.keyPoints = analysis.outline.slice(0, 4).map((item) => `Remember: ${item}`);
       plan.notes = "Summarize the key takeaways from the presentation.";
+      plan.visualType = "icon";
     } else if (type === "divider") {
       plan.heading = sectionTitle;
       plan.keyPoints = [];
       plan.notes = `Transition to the next section: ${sectionTitle}.`;
+      plan.needsImage = true;
+      plan.imagePosition = "background";
+      plan.visualType = "image";
+    } else if (type === "content") {
+      plan.visualType = "icon";
     }
 
     plans.push(plan);
@@ -452,6 +883,11 @@ function createDefaultSlidePlan(analysis: ExtendedAnalysis): SlidePlan[] {
     sectionTitle: "Closing",
     keyPoints: ["Questions?", "Let's discuss next steps"],
     notes: "Thank the audience and open the floor for questions.",
+    needsImage: false,
+    imageKeyword: "",
+    imagePosition: "none",
+    visualType: "none",
+    visualCaption: "",
   });
 
   return plans;
@@ -488,6 +924,7 @@ const toneInstructions: Record<string, string> = {
  * Generate a single slide with full context.
  * This is the core of per-slide generation — each slide gets its own AI call
  * with full awareness of the presentation flow.
+ * Phase 2: Includes visual context when the slide needs an image.
  */
 async function generateSingleSlide(
   plan: SlidePlan,
@@ -509,6 +946,42 @@ async function generateSingleSlide(
     ? `Next slide will be: [${nextPlan.type}] "${nextPlan.heading}"`
     : "This is the closing slide.";
 
+  // Build visual context for the prompt (Phase 2)
+  let visualContext = "";
+  if (plan.needsImage && plan.imageKeyword) {
+    visualContext = `
+═══════════════════════════════════════
+VISUAL ELEMENT — INCLUDE THIS
+═══════════════════════════════════════
+This slide has a ${plan.visualType} visual:
+- Image search keyword: "${plan.imageKeyword}"
+- Position: ${plan.imagePosition}
+${plan.visualCaption ? `- Caption: "${plan.visualCaption}"` : ""}
+
+IMPORTANT: Reference this visual in your content and speaker notes.
+The slide layout should accommodate the visual on the ${plan.imagePosition}.
+In the speaker notes, mention the visual (e.g., "As you can see in this image...").
+`;
+  } else if (plan.visualType === "chart") {
+    visualContext = `
+═══════════════════════════════════════
+VISUAL ELEMENT — CHART
+═══════════════════════════════════════
+This slide includes a chart visualization.
+${plan.visualCaption ? `Caption: "${plan.visualCaption}"` : ""}
+Ensure the data is presented clearly and the chart type is appropriate.
+`;
+  } else if (plan.visualType === "diagram") {
+    visualContext = `
+═══════════════════════════════════════
+VISUAL ELEMENT — DIAGRAM
+═══════════════════════════════════════
+This slide includes a flow diagram or process visualization.
+${plan.visualCaption ? `Caption: "${plan.visualCaption}"` : ""}
+Ensure the diagram clearly shows the flow/relationship.
+`;
+  }
+
   const systemPrompt = `You are an elite presentation designer. You are generating ONE slide at a time for a high-stakes presentation.
 
 Your slide must be FOCUSED on ONE main idea. No clutter. No repetition.
@@ -518,6 +991,7 @@ SLIDE TYPE: ${plan.type}
 ═══════════════════════════════════════
 
 ${getSlideTypeInstructions(plan.type)}
+${visualContext}
 
 ═══════════════════════════════════════
 QUALITY RULES — FOLLOW EXACTLY
@@ -546,6 +1020,8 @@ SLIDE PLAN:
 - Heading: ${plan.heading}
 - Section: ${plan.sectionTitle}
 - Key points to cover: ${plan.keyPoints.join("; ")}
+${plan.needsImage ? `- Visual: ${plan.visualType} (${plan.imagePosition}) — "${plan.imageKeyword}"` : ""}
+${plan.visualCaption ? `- Visual caption: "${plan.visualCaption}"` : ""}
 
 PRESENTATION CONTEXT:
 Title: "${analysis.suggestedTitle}"
@@ -787,7 +1263,7 @@ export async function generateSlidesOneByOne(
   onProgress?: (progress: GenerationProgress) => void,
   slidePlans?: SlidePlan[]
 ): Promise<Slide[]> {
-  const plans = slidePlans || createDefaultSlidePlan(analysis);
+  const plans = slidePlans || suggestVisualsForPlan(createDefaultSlidePlan(analysis), analysis);
   const slides: Slide[] = [];
 
   for (let i = 0; i < plans.length; i++) {
@@ -1143,7 +1619,7 @@ export async function generateSlides(
   onProgress?: (progress: GenerationProgress) => void,
   outline?: OutlineSection[]
 ): Promise<Slide[]> {
-  // Delegate to per-slide generation with default plans
-  const plans = createDefaultSlidePlan(analysis);
+  // Delegate to per-slide generation with default plans (with visual intelligence)
+  const plans = suggestVisualsForPlan(createDefaultSlidePlan(analysis), analysis);
   return generateSlidesOneByOne(inputText, analysis, templateId, inputMode, onProgress, plans);
 }
