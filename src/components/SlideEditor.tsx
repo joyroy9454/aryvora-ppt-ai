@@ -10,7 +10,6 @@ interface SlideEditorProps {
   theme: string;
   onUpdateSlide: (id: string, updated: Partial<Slide>) => void;
   onRegenerateSlide: (id: string) => void;
-  onGenerateImage?: (slideId: string, prompt: string) => Promise<string | null>;
   onExportPPTX: () => void;
   onExportPDF: () => void;
   onExportMarkdown?: () => void;
@@ -62,7 +61,6 @@ export default function SlideEditor({
   theme,
   onUpdateSlide,
   onRegenerateSlide,
-  onGenerateImage,
   onExportPPTX,
   onExportPDF,
   onExportMarkdown,
@@ -77,7 +75,6 @@ export default function SlideEditor({
     slides[0]?.id || null
   );
   const [exporting, setExporting] = useState<string | null>(null);
-  const [generatingImage, setGeneratingImage] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
@@ -458,40 +455,6 @@ export default function SlideEditor({
                       Edit Slide
                     </h3>
                     <div className="flex items-center gap-2">
-                      {onGenerateImage && selectedSlide.imagePrompt && (
-                        <button
-                          onClick={async () => {
-                            setGeneratingImage(true);
-                            try {
-                              const url = await onGenerateImage(
-                                selectedSlide.id,
-                                selectedSlide.imagePrompt || selectedSlide.heading
-                              );
-                              if (url) {
-                                onUpdateSlide(selectedSlide.id, { imageUrl: url });
-                              }
-                            } finally {
-                              setGeneratingImage(false);
-                            }
-                          }}
-                          disabled={generatingImage}
-                          className="text-xs px-3 py-1.5 border border-purple-200 rounded-lg text-purple-600 hover:bg-purple-50 transition-colors flex items-center gap-1 disabled:opacity-50"
-                        >
-                          {generatingImage ? (
-                            <>
-                              <span className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full spinner" />
-                              Generating...
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              Generate Image
-                            </>
-                          )}
-                        </button>
-                      )}
                       <button
                         onClick={() => onRegenerateSlide(selectedSlide.id)}
                         className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors flex items-center gap-1"
@@ -817,39 +780,16 @@ export default function SlideEditor({
                       </div>
                     )}
 
-                    {/* Image */}
+                    {/* Image Search */}
                     {(selectedSlide.type === "image-left" ||
-                      selectedSlide.type === "image-right") && (
-                      <div>
-                        <label className="text-xs font-medium text-slate-500 mb-1 block">
-                          Image URL
-                        </label>
-                        <input
-                          type="text"
-                          value={selectedSlide.imageUrl || ""}
-                          onChange={(e) =>
-                            onUpdateSlide(selectedSlide.id, {
-                              imageUrl: e.target.value,
-                            })
-                          }
-                          placeholder="https://example.com/image.jpg"
-                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                        />
-                        <label className="text-xs font-medium text-slate-500 mb-1 mt-2 block">
-                          Or AI Image Prompt
-                        </label>
-                        <input
-                          type="text"
-                          value={selectedSlide.imagePrompt || ""}
-                          onChange={(e) =>
-                            onUpdateSlide(selectedSlide.id, {
-                              imagePrompt: e.target.value,
-                            })
-                          }
-                          placeholder="Describe an image to generate..."
-                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                        />
-                      </div>
+                      selectedSlide.type === "image-right" ||
+                      selectedSlide.type === "title" ||
+                      selectedSlide.type === "divider" ||
+                      selectedSlide.type === "closing") && (
+                      <ImageSearch
+                        slide={selectedSlide}
+                        onUpdateSlide={onUpdateSlide}
+                      />
                     )}
 
                     {/* Process Steps */}
@@ -1075,6 +1015,144 @@ export default function SlideEditor({
 }
 
 /* ---------- Sub-components ---------- */
+
+function ImageSearch({
+  slide,
+  onUpdateSlide,
+}: {
+  slide: Slide;
+  onUpdateSlide: (id: string, updated: Partial<Slide>) => void;
+}) {
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<{ url: string; thumb: string; alt: string }[]>([]);
+  const [searchQuery, setSearchQuery] = useState(slide.imagePrompt || slide.heading || "");
+  const [showResults, setShowResults] = useState(false);
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    setShowResults(true);
+    try {
+      const res = await fetch("/api/search-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: searchQuery.trim(), count: 6 }),
+      });
+      const data = await res.json();
+      if (res.ok && data.images) {
+        setResults(data.images);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const selectImage = (url: string) => {
+    onUpdateSlide(slide.id, { imageUrl: url });
+    setShowResults(false);
+  };
+
+  return (
+    <div>
+      <label className="text-xs font-medium text-slate-500 mb-1 block">
+        Slide Image
+      </label>
+
+      {/* Current image preview */}
+      {slide.imageUrl && (
+        <div className="mb-3 relative group">
+          <img
+            src={slide.imageUrl}
+            alt="Slide"
+            className="w-full h-32 object-cover rounded-lg border border-slate-200"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+          <button
+            onClick={() => onUpdateSlide(slide.id, { imageUrl: "" })}
+            className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
+      {/* Search input */}
+      <div className="flex gap-2 mb-2">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          placeholder="Search images (e.g. business meeting, nature, technology)"
+          className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+        />
+        <button
+          onClick={handleSearch}
+          disabled={searching || !searchQuery.trim()}
+          className="px-4 py-2 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-300 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
+        >
+          {searching ? (
+            <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full spinner" />
+          ) : (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          )}
+          Search
+        </button>
+      </div>
+
+      {/* Manual URL input */}
+      <div className="mb-2">
+        <input
+          type="text"
+          value={slide.imageUrl || ""}
+          onChange={(e) => onUpdateSlide(slide.id, { imageUrl: e.target.value })}
+          placeholder="Or paste an image URL directly..."
+          className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+        />
+      </div>
+
+      {/* Search results */}
+      {showResults && (
+        <div className="mt-2">
+          <div className="text-xs text-slate-400 mb-2">
+            {searching ? "Searching..." : `${results.length} results — click to select`}
+          </div>
+          {results.length > 0 && (
+            <div className="grid grid-cols-3 gap-2">
+              {results.map((img, i) => (
+                <button
+                  key={i}
+                  onClick={() => selectImage(img.url)}
+                  className="relative group rounded-lg overflow-hidden border-2 border-transparent hover:border-brand-500 transition-colors"
+                >
+                  <img
+                    src={img.thumb}
+                    alt={img.alt}
+                    className="w-full h-16 object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='225'%3E%3Crect fill='%23f1f5f9' width='400' height='225'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-size='12'%3EImage%3C/text%3E%3C/svg%3E";
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="text-[10px] text-slate-400 mt-1">
+        Free images from Unsplash — no API key needed
+      </p>
+    </div>
+  );
+}
 
 function BulletEditor({
   bullets,

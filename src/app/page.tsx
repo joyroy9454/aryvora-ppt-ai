@@ -29,8 +29,6 @@ export default function Home() {
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [urlLoading, setUrlLoading] = useState(false);
-  const [generatingImages, setGeneratingImages] = useState(false);
-  const [generateImages, setGenerateImages] = useState(false);
 
   // Undo/Redo
   const historyRef = useRef<Slide[][]>([[]]);
@@ -91,7 +89,6 @@ export default function Home() {
           templateId,
           slideCount,
           style,
-          generateImages,
         }),
       });
 
@@ -110,7 +107,7 @@ export default function Home() {
       setLoading(false);
       setProgress(null);
     }
-  }, [inputText, inputMode, templateId, slideCount, style, generateImages]);
+  }, [inputText, inputMode, templateId, slideCount, style]);
 
   // Slide operations
   const handleUpdateSlide = useCallback(
@@ -280,34 +277,6 @@ export default function Home() {
     downloadBlob(blob, "txt");
   }, [slides, analysis]);
 
-  // Generate AI image for a slide
-  const handleGenerateImage = useCallback(
-    async (slideId: string, prompt: string): Promise<string | null> => {
-      setGeneratingImages(true);
-      try {
-        const res = await fetch("/api/generate-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || "Failed to generate image");
-          return null;
-        }
-        return data.imageUrl || null;
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to generate image"
-        );
-        return null;
-      } finally {
-        setGeneratingImages(false);
-      }
-    },
-    []
-  );
-
   const handleStartOver = useCallback(() => {
     setStep("landing");
     setInputText("");
@@ -368,7 +337,6 @@ export default function Home() {
           theme={templateId}
           onUpdateSlide={handleUpdateSlide}
           onRegenerateSlide={handleRegenerateSlide}
-          onGenerateImage={handleGenerateImage}
           onExportPPTX={handleExportPPTX}
           onExportPDF={handleExportPDF}
           onExportMarkdown={handleExportMarkdown}
@@ -644,26 +612,6 @@ function LandingScreen({
                 </button>
               ))}
             </div>
-
-            {/* AI Images Toggle */}
-            <button
-              onClick={() => setGenerateImages(!generateImages)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-colors ${
-                generateImages
-                  ? "border-purple-300 bg-purple-50 text-purple-700"
-                  : "border-slate-200 text-slate-500 hover:border-slate-300"
-              }`}
-              disabled={loading}
-              title="Auto-generate AI images for slides"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              AI Images
-              {generateImages && (
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-              )}
-            </button>
           </div>
 
           {/* Generate Button */}

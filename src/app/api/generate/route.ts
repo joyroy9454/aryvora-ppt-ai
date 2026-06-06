@@ -5,8 +5,6 @@ import {
   generateSlides,
   generateSpeakerNotes,
   rewriteSlidesStyle,
-  buildImagePrompt,
-  shouldGenerateImage,
 } from "@/lib/ai-engine";
 
 export async function POST(request: NextRequest) {
@@ -18,14 +16,12 @@ export async function POST(request: NextRequest) {
       templateId,
       slideCount: requestedCount,
       style,
-      generateImages,
     } = body as {
       inputText: string;
       inputMode: InputMode;
       templateId: TemplateId;
       slideCount?: number;
       style?: "academic" | "business" | "casual";
-      generateImages?: boolean;
     };
 
     if (
@@ -97,16 +93,7 @@ export async function POST(request: NextRequest) {
       // Notes are optional, continue without them
     }
 
-    // Step 4: Auto-generate images for slides that need them
-    if (generateImages) {
-      try {
-        slides = await autoGenerateImages(slides, analysis, templateId);
-      } catch {
-        // Image generation is optional, continue without images
-      }
-    }
-
-    // Step 5: Apply style rewrite if requested
+    // Step 4: Apply style rewrite if requested
     if (style && style !== "business") {
       try {
         slides = await rewriteSlidesStyle(slides, style);
@@ -131,42 +118,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// ---------- Auto-generate images for slides (free via Pollinations.ai) ----------
-async function autoGenerateImages(
-  slides: Slide[],
-  analysis: { keywords: string[]; suggestedTitle: string },
-  templateId: TemplateId
-): Promise<Slide[]> {
-  const POLLINATIONS_BASE = "https://image.pollinations.ai/prompt";
-
-  // Find slides that need images
-  const imageSlides = slides.filter(
-    (s) => shouldGenerateImage(s.type) && !s.imageUrl
-  );
-
-  // Limit to 3 images per presentation
-  const toGenerate = imageSlides.slice(0, 3);
-
-  for (const slide of toGenerate) {
-    try {
-      const prompt = buildImagePrompt(
-        slide.heading,
-        slide.type,
-        analysis.keywords,
-        templateId
-      );
-
-      const seed = Math.floor(Math.random() * 1000000);
-      // Pollinations URL IS the image — it generates on-the-fly when accessed
-      slide.imageUrl = `${POLLINATIONS_BASE}/${encodeURIComponent(prompt)}?width=1366&height=768&seed=${seed}&nologo=true`;
-    } catch {
-      // Skip failed image generation for this slide
-    }
-  }
-
-  return slides;
 }
 
 function generateFallbackSlides(analysis: {
