@@ -1,7 +1,6 @@
 // ============================================================
-// AI Intelligence Layer — Advanced Generation Engine
-// Analyzes input, generates outlines, creates optimized
-// presentations, and enhances content quality.
+// AI Intelligence Layer — Phase 1: Core Generation Quality
+// Per-slide generation, content enhancement, quality assurance
 // ============================================================
 
 import type {
@@ -12,7 +11,6 @@ import type {
   GenerationProgress,
   TopicCategory,
   AudienceType,
-  ToneType,
 } from "@/types";
 
 const MODEL = process.env.OPENROUTER_MODEL || "openrouter/owl-alpha";
@@ -90,7 +88,7 @@ export function parseJSON(raw: string): any {
 }
 
 // ============================================================
-// STEP 1 — Analyze Input (smarter)
+// STEP 1 — Analyze Input
 // ============================================================
 
 export interface ExtendedAnalysis extends AIAnalysis {
@@ -186,11 +184,9 @@ export function autoSelectTemplate(
   audience: AudienceType,
   purpose?: string
 ): TemplateId {
-  // Purpose-based selection (highest priority)
   if (purpose === "pitch") return "startup";
   if (purpose === "inspire") return "dark";
 
-  // Category + audience matrix
   const key = `${category}:${audience}`;
   const map: Record<string, TemplateId> = {
     "technology:technical": "dark",
@@ -207,7 +203,6 @@ export function autoSelectTemplate(
     "education:general": "seminar",
     "science:technical": "research",
     "science:students": "research",
-    "science:academic": "academic",
     "health:general": "seminar",
     "health:professionals": "research",
     "marketing:customers": "marketing",
@@ -222,7 +217,6 @@ export function autoSelectTemplate(
 
   if (map[key]) return map[key];
 
-  // Category fallbacks
   const catMap: Record<string, TemplateId> = {
     technology: "dark",
     business: "corporate",
@@ -261,7 +255,6 @@ Keep it under ${maxChars} characters. Preserve specific numbers, names, and tech
     const raw = await callAI(systemPrompt, inputText.substring(0, 8000));
     return raw.length > maxChars ? raw.substring(0, maxChars) : raw;
   } catch {
-    // Fallback: truncate with ellipsis at a sentence boundary
     const truncated = inputText.substring(0, maxChars);
     const lastPeriod = truncated.lastIndexOf(".");
     return lastPeriod > maxChars * 0.7
@@ -281,30 +274,65 @@ export interface OutlineSection {
   suggestedSlideTypes: SlideType[];
 }
 
+export interface SlidePlan {
+  index: number;
+  type: SlideType;
+  heading: string;
+  sectionTitle: string;
+  keyPoints: string[];
+  notes: string;
+}
+
 export async function generateOutline(
   inputText: string,
   analysis: ExtendedAnalysis
-): Promise<OutlineSection[]> {
-  const systemPrompt = `You are a presentation architect. Create a detailed slide-by-slide outline for a ${analysis.suggestedSlideCount}-slide presentation.
+): Promise<SlidePlan[]> {
+  const systemPrompt = `You are a presentation architect. Create a detailed slide-by-slide plan for a ${analysis.suggestedSlideCount}-slide presentation.
 
-Return ONLY a JSON array of section objects:
+Return ONLY a JSON array of slide plan objects:
 [
   {
-    "title": "Section name",
-    "slideCount": number,
-    "keyPoints": ["point 1", "point 2"],
-    "suggestedSlideTypes": ["content", "two-column", "statistic", ...]
-  }
+    "index": 0,
+    "type": "title",
+    "heading": "Presentation title",
+    "sectionTitle": "Title",
+    "keyPoints": [],
+    "notes": "Opening remarks"
+  },
+  {
+    "index": 1,
+    "type": "content",
+    "heading": "Agenda",
+    "sectionTitle": "Overview",
+    "keyPoints": ["Point 1", "Point 2"],
+    "notes": "Walk through the agenda"
+  },
+  ...
 ]
 
-RULES:
-- First section should be the "Introduction/Agenda" (1-2 slides)
-- Last section should be the "Conclusion/Next Steps" (1-2 slides)
-- Middle sections should cover the main content
-- Each section should have 2-5 slides
-- suggestedSlideTypes should vary — don't use "content" for every slide
-- Available types: title, content, two-column, closing, quote, comparison, timeline, process, statistic, chart, divider, summary, qa
-- Total slides across all sections must equal ${analysis.suggestedSlideCount}
+SLIDE PLAN RULES:
+- Total slides must equal ${analysis.suggestedSlideCount}
+- Slide 0: type "title" — the presentation title slide
+- Slide 1: type "content" — Agenda/Overview (4-5 bullet points listing main sections)
+- Slides 2 to ${analysis.suggestedSlideCount - 2}: content slides with varied types
+- Slide ${analysis.suggestedSlideCount - 2}: type "summary" — Key Takeaways
+- Slide ${analysis.suggestedSlideCount - 1}: type "closing" — Thank You / Next Steps
+
+VARY THE SLIDE TYPES across content slides:
+- Use "content" for standard text slides (most common)
+- Use "two-column" for comparisons or pros/cons
+- Use "statistic" for data-heavy slides (2-4 key metrics)
+- Use "quote" for impactful quotes (1 per presentation)
+- Use "timeline" for chronological content
+- Use "process" for step-by-step flows
+- Use "comparison" for side-by-side analysis
+- Use "divider" between major sections (every 4-5 slides)
+- Use "chart" for data visualization
+
+Each slide must have:
+- "heading": a SPECIFIC, ENGAGING title (not generic)
+- "keyPoints": 2-4 key points for this slide
+- "notes": 1 sentence describing what the presenter should say
 
 Return ONLY raw JSON array.`;
 
@@ -321,27 +349,116 @@ ${analysis.outline.map((item, i) => `${i + 1}. ${item}`).join("\n")}
 
 Original input (for reference): "${inputText.substring(0, 2000)}"
 
-Create a detailed section-by-section outline with slide type recommendations.`;
+Create a detailed slide-by-slide plan. Each slide should have a clear purpose and focus on ONE main idea.`;
 
   try {
     const raw = await callAI(systemPrompt, userPrompt);
     const result = parseJSON(raw);
-    return Array.isArray(result) ? result : result.sections || [];
+    const plans: SlidePlan[] = Array.isArray(result) ? result : result.slides || [];
+    
+    // Validate and fix slide count
+    if (plans.length !== analysis.suggestedSlideCount) {
+      return createDefaultSlidePlan(analysis);
+    }
+    
+    return plans;
   } catch {
-    // Fallback: create a simple outline from the analysis
-    return analysis.outline.map((item, i) => ({
-      title: item,
-      slideCount: 1,
-      keyPoints: [`Key point about ${item}`],
-      suggestedSlideTypes: i === 0
-        ? ["content"]
-        : ["content"] as SlideType[],
-    }));
+    return createDefaultSlidePlan(analysis);
   }
 }
 
+function createDefaultSlidePlan(analysis: ExtendedAnalysis): SlidePlan[] {
+  const total = analysis.suggestedSlideCount;
+  const plans: SlidePlan[] = [];
+
+  // Title slide
+  plans.push({
+    index: 0,
+    type: "title",
+    heading: analysis.suggestedTitle,
+    sectionTitle: "Title",
+    keyPoints: [],
+    notes: `Welcome the audience and introduce "${analysis.suggestedTitle}".`,
+  });
+
+  // Agenda slide
+  plans.push({
+    index: 1,
+    type: "content",
+    heading: "Agenda",
+    sectionTitle: "Overview",
+    keyPoints: analysis.outline.slice(0, 5).length > 0
+      ? analysis.outline.slice(0, 5)
+      : ["Introduction", "Key Topics", "Analysis", "Recommendations", "Next Steps"],
+    notes: "Walk the audience through what we'll cover today.",
+  });
+
+  // Content slides
+  const contentCount = total - 3; // minus title, agenda, closing
+  for (let i = 0; i < contentCount; i++) {
+    const sectionTitle = analysis.outline[i % analysis.outline.length] || `Key Point ${i + 1}`;
+    const isLast = i === contentCount - 1;
+    
+    let type: SlideType = "content";
+    if (isLast) {
+      type = "summary";
+    } else if (i === 2) {
+      type = "statistic";
+    } else if (i === 4) {
+      type = "quote";
+    } else if (i === 6) {
+      type = "two-column";
+    } else if (i > 0 && i % 5 === 0) {
+      type = "divider";
+    }
+
+    const plan: SlidePlan = {
+      index: i + 2,
+      type,
+      heading: sectionTitle,
+      sectionTitle,
+      keyPoints: [
+        `Key insight about ${sectionTitle.toLowerCase()}`,
+        `Supporting evidence or example`,
+        `Actionable takeaway`,
+      ],
+      notes: `Explain the key points about ${sectionTitle.toLowerCase()}.`,
+    };
+
+    if (type === "statistic") {
+      plan.keyPoints = ["85% improvement", "+42% growth", "1.2M users"];
+      plan.notes = "Present the key metrics and what they mean.";
+    } else if (type === "quote") {
+      plan.keyPoints = [];
+      plan.notes = "Share this impactful quote and explain its relevance.";
+    } else if (type === "summary") {
+      plan.heading = "Key Takeaways";
+      plan.keyPoints = analysis.outline.slice(0, 4).map((item) => `Remember: ${item}`);
+      plan.notes = "Summarize the key takeaways from the presentation.";
+    } else if (type === "divider") {
+      plan.heading = sectionTitle;
+      plan.keyPoints = [];
+      plan.notes = `Transition to the next section: ${sectionTitle}.`;
+    }
+
+    plans.push(plan);
+  }
+
+  // Closing slide
+  plans.push({
+    index: total - 1,
+    type: "closing",
+    heading: "Thank You",
+    sectionTitle: "Closing",
+    keyPoints: ["Questions?", "Let's discuss next steps"],
+    notes: "Thank the audience and open the floor for questions.",
+  });
+
+  return plans;
+}
+
 // ============================================================
-// STEP 3 — Generate slides (significantly improved)
+// STEP 3 — Generate slides ONE BY ONE
 // ============================================================
 
 const templateDescriptions: Record<TemplateId, string> = {
@@ -367,134 +484,335 @@ const toneInstructions: Record<string, string> = {
   conversational: "Write as if speaking directly to the audience. Use 'you' and 'we'. Be engaging.",
 };
 
-export async function generateSlides(
-  inputText: string,
+/**
+ * Generate a single slide with full context.
+ * This is the core of per-slide generation — each slide gets its own AI call
+ * with full awareness of the presentation flow.
+ */
+async function generateSingleSlide(
+  plan: SlidePlan,
   analysis: ExtendedAnalysis,
   templateId: TemplateId,
-  inputMode: string,
-  onProgress?: (progress: GenerationProgress) => void,
-  outline?: OutlineSection[]
-): Promise<Slide[]> {
-  const slideCount = analysis.suggestedSlideCount;
+  inputText: string,
+  previousSlides: Slide[],
+  nextPlan: SlidePlan | null
+): Promise<Slide> {
   const effectiveTemplate = analysis.suggestedTemplate || templateId;
 
-  onProgress?.({
-    step: "generating",
-    message: `Generating ${slideCount} slides...`,
-    progress: 30,
-    totalSlides: slideCount,
-  });
+  // Build context from previous slides
+  const prevContext = previousSlides
+    .slice(-3) // Last 3 slides for context
+    .map((s, i) => `Slide ${s.index ?? previousSlides.length - 3 + i}: [${s.type}] "${s.heading}" — ${s.bullets?.slice(0, 2).join("; ") || s.quote || ""}`)
+    .join("\n");
 
-  const outlineText = outline
-    ? outline
-        .map(
-          (sec, i) =>
-            `Section ${i + 1}: ${sec.title} (${sec.slideCount} slides)\n` +
-            `  Slide types: ${sec.suggestedSlideTypes.join(", ")}\n` +
-            `  Key points: ${sec.keyPoints.join("; ")}`
-        )
-        .join("\n\n")
-    : analysis.outline.map((item, i) => `${i + 1}. ${item}`).join("\n");
+  const nextContext = nextPlan
+    ? `Next slide will be: [${nextPlan.type}] "${nextPlan.heading}"`
+    : "This is the closing slide.";
 
-  const systemPrompt = `You are an elite presentation designer who has created decks for TED talks, Fortune 500 boardrooms, Y Combinator pitches, and academic conferences. Your presentations are known for their clarity, impact, and visual storytelling.
+  const systemPrompt = `You are an elite presentation designer. You are generating ONE slide at a time for a high-stakes presentation.
 
-Create a complete, publication-quality ${slideCount}-slide presentation.
+Your slide must be FOCUSED on ONE main idea. No clutter. No repetition.
 
 ═══════════════════════════════════════
-SLIDE STRUCTURE
+SLIDE TYPE: ${plan.type}
 ═══════════════════════════════════════
 
-Return a JSON array of slide objects. Each slide MUST have:
-- "type": "title" | "content" | "two-column" | "closing" | "quote" | "comparison" | "timeline" | "process" | "statistic" | "chart" | "divider" | "summary" | "qa"
-- "heading": string (slide title — make it compelling, not generic)
-- "sub": string (subtitle, optional)
-- "bullets": string[] (3-5 concise bullets for content slides)
-- "leftCol": string[] (for two-column/comparison slides)
-- "rightCol": string[] (for two-column/comparison slides)
-- "quote": string (for quote slides — must be a real or plausible quote)
-- "author": string (for quote slides)
-- "stats": [{"label": string, "value": string}] (for statistic slides, 2-4 items)
-- "timeline": [{"label": string, "description": string}] (for timeline slides, 3-5 items)
-- "process": [{"step": number, "title": string, "description": string}] (for process slides, 3-5 items)
-- "chart": [{"label": string, "value": number}] (for chart slides, 3-6 items)
-- "chartType": "bar" | "pie" | "line" (for chart slides)
-- "icon": string (emoji icon for the slide)
-- "notes": string (speaker notes — 1-2 sentences, conversational)
+${getSlideTypeInstructions(plan.type)}
 
 ═══════════════════════════════════════
 QUALITY RULES — FOLLOW EXACTLY
 ═══════════════════════════════════════
 
-STRUCTURE:
-1. Slide 1 MUST be type "title" with heading, sub, and icon
-2. Slide 2 SHOULD be type "content" serving as an Agenda/Overview (4-5 bullet points)
-3. Use "divider" slides between major sections (every 4-5 content slides)
-4. Include at least ONE of each: "quote", "statistic" or "chart", "timeline" or "process"
-5. Include a "summary" slide before the closing with 4-5 key takeaways
-6. Last slide MUST be type "closing" with 2-3 action items or next steps
+1. Heading must be SPECIFIC and ENGAGING — never generic like "Overview" or "Introduction"
+2. Content must be CONCISE — max 10 words per bullet, max 5 bullets
+3. Use human-like language — vary sentence length, use active voice
+4. NO repetition with previous slides — check the context below
+5. Every word must earn its place — cut anything that doesn't add value
+6. Speaker notes must be CONVERSATIONAL — 1-2 sentences, natural speaking tone
+7. Include a transition phrase in notes when appropriate ("Now let's look at...", "Building on that...")
 
-CONTENT QUALITY:
-7. NO repetition across slides — each slide must add unique value
-8. Bullets must be CONCISE — max 10 words each, 3-5 per slide
-9. Headings must be SPECIFIC and ENGAGING — never generic like "Overview" or "Introduction"
-10. Use human-like language — vary sentence length, use active voice, be specific
-11. Include real-world examples, data points, or concrete details where possible
-12. Ensure logical flow: hook → context → problem → solution → evidence → action
-13. Agenda slide should list the main sections (not just repeat the outline)
-14. Summary slide should synthesize, not just list — use phrases like "The key takeaway is..."
-15. Closing slide should have a memorable final statement + clear next steps
+TONE: ${toneInstructions[analysis.tone] || toneInstructions.conversational}
+AUDIENCE: ${analysis.audience} — adjust complexity and jargon accordingly
+PURPOSE: ${analysis.purpose} — this slide must serve this goal
+DESIGN STYLE: ${templateDescriptions[effectiveTemplate] || templateDescriptions.corporate}
 
-TONE & STYLE:
-16. Tone: ${toneInstructions[analysis.tone] || toneInstructions.conversational}
-17. Design style: ${templateDescriptions[effectiveTemplate] || templateDescriptions.corporate}
-18. Audience: ${analysis.audience} — adjust complexity and jargon accordingly
-19. Purpose: ${analysis.purpose} — every slide should serve this goal
+Return ONLY a JSON object (not an array) with the slide content.
+IMPORTANT: Return ONLY raw JSON, no markdown.`;
 
-IMPORTANT: Return ONLY the raw JSON array, no markdown, no explanation.`;
+  const userPrompt = `Generate slide ${plan.index + 1} of ${analysis.suggestedSlideCount}.
 
-  const userPrompt = `Create a ${slideCount}-slide presentation.
+SLIDE PLAN:
+- Type: ${plan.type}
+- Heading: ${plan.heading}
+- Section: ${plan.sectionTitle}
+- Key points to cover: ${plan.keyPoints.join("; ")}
 
-TITLE: "${analysis.suggestedTitle}"
-SUBTITLE: "${analysis.suggestedSubtitle}"
-CATEGORY: ${analysis.category}
-AUDIENCE: ${analysis.audience}
-TONE: ${analysis.tone}
-PURPOSE: ${analysis.purpose}
-KEYWORDS: ${analysis.keywords.join(", ")}
+PRESENTATION CONTEXT:
+Title: "${analysis.suggestedTitle}"
+Category: ${analysis.category}
+Keywords: ${analysis.keywords.join(", ")}
 
-DETAILED OUTLINE:
-${outlineText}
+PREVIOUS SLIDES (for context — DO NOT repeat their content):
+${prevContext || "(This is the first slide)"}
 
-INPUT MODE: ${inputMode}
-ORIGINAL INPUT (for reference): "${inputText.substring(0, 2500)}"
+NEXT SLIDE:
+${nextContext}
 
-Generate diverse, high-quality slides. Make it feel like a world-class presentation a skilled human would create. Every slide should earn its place.`;
+ORIGINAL INPUT (for reference): "${inputText.substring(0, 1500)}"
 
-  const raw = await callAI(systemPrompt, userPrompt);
-  let slides: Slide[];
+Generate this ONE slide. Make it focused, impactful, and presentation-ready.`;
 
   try {
-    const parsed = parseJSON(raw);
-    const slideArray = Array.isArray(parsed) ? parsed : parsed.slides || [];
-    slides = slideArray.map((s: any, i: number) => ({
-      ...s,
-      id: `slide-${Date.now()}-${i}`,
-      type: s.type || "content",
-      heading: s.heading || `Slide ${i + 1}`,
-    }));
+    const raw = await callAI(systemPrompt, userPrompt);
+    const content = parseJSON(raw);
+
+    return {
+      id: `slide-${Date.now()}-${plan.index}`,
+      type: plan.type,
+      heading: content.heading || plan.heading,
+      sub: content.sub || "",
+      bullets: content.bullets || plan.keyPoints,
+      leftCol: content.leftCol,
+      rightCol: content.rightCol,
+      quote: content.quote,
+      author: content.author,
+      stats: content.stats,
+      timeline: content.timeline,
+      process: content.process,
+      chart: content.chart,
+      chartType: content.chartType,
+      icon: content.icon || getIconForType(plan.type, analysis.category),
+      notes: content.notes || plan.notes,
+      index: plan.index,
+    };
   } catch {
-    slides = generateFallbackSlides(analysis, slideCount);
+    // Fallback: create slide from plan
+    return createSlideFromPlan(plan, analysis);
+  }
+}
+
+function getSlideTypeInstructions(type: SlideType): string {
+  switch (type) {
+    case "title":
+      return `Title slide requirements:
+- "heading": The presentation title (compelling, specific)
+- "sub": A short subtitle
+- "icon": A relevant emoji
+- "notes": Opening remarks to welcome the audience`;
+    case "content":
+      return `Content slide requirements:
+- "heading": Specific, engaging title
+- "bullets": 3-5 concise bullets (max 10 words each)
+- "icon": A relevant emoji
+- "notes": 1-2 conversational sentences for the presenter`;
+    case "two-column":
+      return `Two-column slide requirements:
+- "heading": Specific title
+- "leftCol": 3-4 items for left column
+- "rightCol": 3-4 items for right column
+- "icon": A relevant emoji
+- "notes": Explain the comparison or relationship`;
+    case "statistic":
+      return `Statistic slide requirements:
+- "heading": Title highlighting the key metric
+- "stats": 2-4 items with "label" and "value" (e.g., {"label": "Growth", "value": "+42%"})
+- "icon": A relevant emoji
+- "notes": Explain what these numbers mean`;
+    case "quote":
+      return `Quote slide requirements:
+- "heading": Context for the quote
+- "quote": An impactful, relevant quote (real or plausible)
+- "author": Who said it
+- "icon": 💬
+- "notes": Explain why this quote matters`;
+    case "comparison":
+      return `Comparison slide requirements:
+- "heading": What's being compared
+- "leftCol": 3-4 points for option A
+- "rightCol": 3-4 points for option B
+- "icon": ⚖️
+- "notes": Summarize the key difference`;
+    case "timeline":
+      return `Timeline slide requirements:
+- "heading": What the timeline shows
+- "timeline": 3-5 items with "label" (date/phase) and "description"
+- "icon": 📅
+- "notes": Walk through the timeline`;
+    case "process":
+      return `Process slide requirements:
+- "heading": The process name
+- "process": 3-5 items with "step" (number), "title", "description"
+- "icon": 🔄
+- "notes": Explain the process flow`;
+    case "chart":
+      return `Chart slide requirements:
+- "heading": What the chart shows
+- "chart": 3-6 items with "label" and "value" (number)
+- "chartType": "bar" or "pie" or "line"
+- "icon": 📊
+- "notes": Explain the key insight from the data`;
+    case "divider":
+      return `Section divider requirements:
+- "heading": The section title (large, prominent)
+- "sub": Optional brief description
+- "icon": A relevant emoji
+- "notes": Transition statement to the new section`;
+    case "summary":
+      return `Summary slide requirements:
+- "heading": "Key Takeaways" or similar
+- "bullets": 4-5 synthesized takeaways (not just a list — each should be an insight)
+- "icon": ✅
+- "notes": "Summarize the key messages the audience should remember"`;
+    case "closing":
+      return `Closing slide requirements:
+- "heading": "Thank You" or similar
+- "sub": Optional — presentation title or tagline
+- "bullets": 2-3 action items or next steps
+- "icon": 🙏
+- "notes": "Thank the audience and open for questions"`;
+    case "qa":
+      return `Q&A slide requirements:
+- "heading": "Questions & Answers" or similar
+- "bullets": 2-3 anticipated questions to seed discussion
+- "icon": ❓
+- "notes": "Invite questions from the audience"`;
+    default:
+      return `Standard slide requirements:
+- "heading": Specific, engaging title
+- "bullets": 3-5 concise bullets
+- "icon": A relevant emoji
+- "notes": 1-2 conversational sentences`;
+  }
+}
+
+function createSlideFromPlan(plan: SlidePlan, analysis: ExtendedAnalysis): Slide {
+  const slide: Slide = {
+    id: `slide-${Date.now()}-${plan.index}`,
+    type: plan.type,
+    heading: plan.heading,
+    icon: getIconForType(plan.type, analysis.category),
+    notes: plan.notes,
+    index: plan.index,
+  };
+
+  switch (plan.type) {
+    case "title":
+      slide.sub = analysis.suggestedSubtitle;
+      break;
+    case "content":
+    case "summary":
+    case "qa":
+      slide.bullets = plan.keyPoints;
+      break;
+    case "statistic":
+      slide.stats = [
+        { label: "Key Metric", value: "85%" },
+        { label: "Growth", value: "+42%" },
+        { label: "Adoption", value: "1.2M" },
+      ];
+      break;
+    case "quote":
+      slide.quote = "The best way to predict the future is to create it.";
+      slide.author = "Peter Drucker";
+      break;
+    case "two-column":
+    case "comparison":
+      slide.leftCol = plan.keyPoints.slice(0, 3);
+      slide.rightCol = ["Alternative approach", "Different perspective", "Contrasting view"];
+      break;
+    case "timeline":
+      slide.timeline = plan.keyPoints.map((p, i) => ({
+        label: `Phase ${i + 1}`,
+        description: p,
+      }));
+      break;
+    case "process":
+      slide.process = plan.keyPoints.map((p, i) => ({
+        step: i + 1,
+        title: `Step ${i + 1}`,
+        description: p,
+      }));
+      break;
+    case "chart":
+      slide.chart = [
+        { label: "A", value: 65 },
+        { label: "B", value: 45 },
+        { label: "C", value: 80 },
+      ];
+      slide.chartType = "bar";
+      break;
+    case "divider":
+      slide.sub = "Section Overview";
+      break;
+    case "closing":
+      slide.bullets = ["Questions?", "Let's discuss next steps"];
+      break;
   }
 
-  // Ensure minimum quality
-  slides = ensureQuality(slides, analysis);
+  return slide;
+}
 
-  onProgress?.({
-    step: "finalizing",
-    message: "Finalizing presentation...",
-    progress: 90,
-    totalSlides: slideCount,
-  });
+function getIconForType(type: SlideType, category: string): string {
+  const icons: Record<SlideType, string> = {
+    title: "📊",
+    content: "📝",
+    "two-column": "📊",
+    closing: "🙏",
+    "image-left": "🖼️",
+    "image-right": "🖼️",
+    quote: "💬",
+    comparison: "⚖️",
+    timeline: "📅",
+    statistic: "📈",
+    divider: "➖",
+    process: "🔄",
+    chart: "📊",
+    summary: "✅",
+    qa: "❓",
+    blank: "📄",
+  };
+  return icons[type] || "📌";
+}
+
+/**
+ * Generate all slides one by one.
+ * This is the key Phase 1 improvement — each slide gets its own AI call
+ * with full context of previous slides and the overall plan.
+ */
+export async function generateSlidesOneByOne(
+  inputText: string,
+  analysis: ExtendedAnalysis,
+  templateId: TemplateId,
+  inputMode: string,
+  onProgress?: (progress: GenerationProgress) => void,
+  slidePlans?: SlidePlan[]
+): Promise<Slide[]> {
+  const plans = slidePlans || createDefaultSlidePlan(analysis);
+  const slides: Slide[] = [];
+
+  for (let i = 0; i < plans.length; i++) {
+    const plan = plans[i];
+    const nextPlan = i < plans.length - 1 ? plans[i + 1] : null;
+
+    onProgress?.({
+      step: "generating",
+      message: `Writing slide ${i + 1} of ${plans.length}: ${plan.heading}`,
+      progress: 30 + Math.round((i / plans.length) * 40),
+      currentSlide: i + 1,
+      totalSlides: plans.length,
+    });
+
+    const slide = await generateSingleSlide(
+      plan,
+      analysis,
+      templateId,
+      inputText,
+      slides,
+      nextPlan
+    );
+
+    slides.push(slide);
+  }
 
   return slides;
 }
@@ -510,12 +828,12 @@ export async function enhanceContent(
 ): Promise<Slide[]> {
   onProgress?.({
     step: "enhancing",
-    message: "Enhancing content quality...",
-    progress: 70,
+    message: "Polishing slide content...",
+    progress: 75,
     totalSlides: slides.length,
   });
 
-  const systemPrompt = `You are a presentation quality editor. Review and enhance the following slides to make them more impactful, concise, and professional.
+  const systemPrompt = `You are a world-class presentation editor. Review and enhance these slides to make them presentation-ready.
 
 ENHANCEMENT RULES:
 1. Remove ANY repetition across slides — each slide must have unique content
@@ -526,7 +844,7 @@ ENHANCEMENT RULES:
 6. Make text presentation-friendly — short, punchy, memorable
 7. Ensure the agenda slide accurately reflects the actual content
 8. Ensure the summary slide synthesizes key insights (not just lists)
-9. Add speaker notes if missing (1-2 conversational sentences per slide)
+9. Improve speaker notes to be more conversational and natural
 10. Preserve all slide types, IDs, and structure — only improve text content
 
 Return ONLY a JSON array of the enhanced slide objects with the same structure and IDs.
@@ -537,21 +855,20 @@ IMPORTANT: Return ONLY the raw JSON array, no markdown.`;
 
 ${JSON.stringify(slides, null, 2)}
 
-Improve quality while keeping the same structure. Make every word count.`;
+Improve quality while keeping the same structure. Make every word count. Ensure no repetition.`;
 
   try {
     const raw = await callAI(systemPrompt, userPrompt);
     const parsed = parseJSON(raw);
     const slideArray = Array.isArray(parsed) ? parsed : parsed.slides || [];
 
-    // Merge enhanced content with original structure to preserve IDs and types
     return slides.map((original, i) => {
       const enhanced = slideArray[i];
       if (!enhanced) return original;
       return {
         ...original,
         heading: enhanced.heading || original.heading,
-        sub: enhanced.sub || original.sub,
+        sub: enhanced.sub !== undefined ? enhanced.sub : original.sub,
         bullets: enhanced.bullets || original.bullets,
         leftCol: enhanced.leftCol || original.leftCol,
         rightCol: enhanced.rightCol || original.rightCol,
@@ -567,19 +884,18 @@ Improve quality while keeping the same structure. Make every word count.`;
       };
     });
   } catch {
-    // Enhancement failed — return original slides (graceful degradation)
     return slides;
   }
 }
 
 // ============================================================
-// Quality Assurance
+// STEP 5 — Final quality check
 // ============================================================
 
-function ensureQuality(slides: Slide[], analysis: ExtendedAnalysis): Slide[] {
+export function finalQualityCheck(slides: Slide[], analysis: ExtendedAnalysis): Slide[] {
   if (slides.length === 0) return slides;
 
-  // Ensure first slide is title
+  // 1. Ensure first slide is title
   if (slides[0].type !== "title") {
     slides[0].type = "title";
   }
@@ -587,7 +903,7 @@ function ensureQuality(slides: Slide[], analysis: ExtendedAnalysis): Slide[] {
     slides[0].heading = analysis.suggestedTitle;
   }
 
-  // Ensure last slide is closing
+  // 2. Ensure last slide is closing
   if (slides.length > 1) {
     slides[slides.length - 1].type = "closing";
     if (!slides[slides.length - 1].heading) {
@@ -595,22 +911,31 @@ function ensureQuality(slides: Slide[], analysis: ExtendedAnalysis): Slide[] {
     }
   }
 
-  // Limit bullets per slide and truncate long bullets
+  // 3. Limit and clean bullets
   for (const slide of slides) {
     if (slide.bullets) {
-      // Max 5 bullets per slide
+      // Max 5 bullets
       if (slide.bullets.length > 5) {
         slide.bullets = slide.bullets.slice(0, 5);
       }
-      // Max 10 words per bullet
+      // Max 10 words per bullet, clean up
       slide.bullets = slide.bullets.map((b) => {
-        const words = b.split(/\s+/);
-        if (words.length > 10) {
-          return words.slice(0, 10).join(" ") + "…";
+        let cleaned = b.trim();
+        // Remove trailing periods from bullets
+        if (cleaned.endsWith(".") && cleaned.length > 10) {
+          cleaned = cleaned.slice(0, -1);
         }
-        return b;
+        // Enforce word limit
+        const words = cleaned.split(/\s+/);
+        if (words.length > 10) {
+          cleaned = words.slice(0, 10).join(" ") + "…";
+        }
+        return cleaned;
       });
+      // Remove empty bullets
+      slide.bullets = slide.bullets.filter((b) => b.length > 0);
     }
+
     // Limit column content
     if (slide.leftCol && slide.leftCol.length > 5) {
       slide.leftCol = slide.leftCol.slice(0, 5);
@@ -620,7 +945,7 @@ function ensureQuality(slides: Slide[], analysis: ExtendedAnalysis): Slide[] {
     }
   }
 
-  // Remove duplicate headings
+  // 4. Remove duplicate headings
   const headings = new Set<string>();
   for (const slide of slides) {
     if (headings.has(slide.heading)) {
@@ -629,103 +954,137 @@ function ensureQuality(slides: Slide[], analysis: ExtendedAnalysis): Slide[] {
     headings.add(slide.heading);
   }
 
-  // Ensure no two consecutive slides have the same type (except content)
+  // 5. Remove near-duplicate bullets across slides
+  const allBullets = new Set<string>();
+  for (const slide of slides) {
+    if (slide.bullets) {
+      slide.bullets = slide.bullets.filter((b) => {
+        const normalized = b.toLowerCase().trim();
+        if (allBullets.has(normalized)) return false;
+        allBullets.add(normalized);
+        return true;
+      });
+    }
+  }
+
+  // 6. Ensure no two consecutive special-type slides
   const specialTypes = new Set(["quote", "statistic", "chart", "timeline", "process", "divider"]);
   for (let i = 1; i < slides.length; i++) {
     if (
       slides[i].type === slides[i - 1].type &&
       specialTypes.has(slides[i].type)
     ) {
-      // Insert a content slide or change type
       slides[i].type = "content";
+    }
+  }
+
+  // 7. Ensure every slide has speaker notes
+  for (const slide of slides) {
+    if (!slide.notes || slide.notes.trim().length < 5) {
+      slide.notes = generateDefaultNote(slide, analysis);
+    }
+  }
+
+  // 8. Ensure agenda slide (slide 1) has content
+  if (slides.length > 1 && slides[1].type === "content") {
+    if (!slides[1].bullets || slides[1].bullets.length === 0) {
+      slides[1].bullets = analysis.outline.slice(0, 5).length > 0
+        ? analysis.outline.slice(0, 5)
+        : ["Introduction", "Key Topics", "Analysis", "Recommendations", "Next Steps"];
+    }
+    if (!slides[1].heading || slides[1].heading === "New Slide") {
+      slides[1].heading = "Agenda";
+    }
+  }
+
+  // 9. Ensure summary slide exists (second to last)
+  if (slides.length > 4) {
+    const summaryIndex = slides.length - 2;
+    if (slides[summaryIndex].type !== "summary") {
+      // Check if any slide is a summary
+      const hasSummary = slides.some((s) => s.type === "summary");
+      if (!hasSummary) {
+        slides[summaryIndex].type = "summary";
+        slides[summaryIndex].heading = "Key Takeaways";
+        slides[summaryIndex].bullets = analysis.outline.slice(0, 4).map(
+          (item) => `Key insight: ${item}`
+        );
+      }
+    }
+  }
+
+  // 10. Clean up closing slide
+  const lastSlide = slides[slides.length - 1];
+  if (lastSlide.type === "closing") {
+    if (!lastSlide.bullets || lastSlide.bullets.length === 0) {
+      lastSlide.bullets = ["Questions?", "Let's discuss next steps"];
     }
   }
 
   return slides;
 }
 
-// ============================================================
-// Fallback slide generation
-// ============================================================
-
-function generateFallbackSlides(
-  analysis: ExtendedAnalysis,
-  count: number
-): Slide[] {
-  const slides: Slide[] = [
-    {
-      id: `slide-${Date.now()}-0`,
-      type: "title",
-      heading: analysis.suggestedTitle,
-      sub: analysis.suggestedSubtitle,
-      icon: "📊",
-    },
-  ];
-
-  // Agenda slide
-  if (count > 3) {
-    slides.push({
-      id: `slide-${Date.now()}-1`,
-      type: "content",
-      heading: "Agenda",
-      bullets: analysis.outline.slice(0, 5).map((item) => item),
-      icon: "📋",
-    });
+function generateDefaultNote(slide: Slide, analysis: ExtendedAnalysis): string {
+  switch (slide.type) {
+    case "title":
+      return `Welcome the audience and introduce "${slide.heading}". Set the tone for the presentation.`;
+    case "closing":
+      return "Thank the audience for their attention. Open the floor for questions and discussion.";
+    case "quote":
+      return `Share this quote and explain its relevance to ${analysis.suggestedTitle}.`;
+    case "statistic":
+      return "Present these key metrics and explain what they mean for the audience.";
+    case "divider":
+      return `Transition to the next section: ${slide.heading}.`;
+    case "summary":
+      return "Summarize the key takeaways. Emphasize what the audience should remember.";
+    default:
+      return `Explain the key points about ${slide.heading.toLowerCase()}. Connect to the overall message.`;
   }
+}
 
-  const contentSlideCount = count - slides.length - 1; // reserve last for closing
-  for (let i = 0; i < contentSlideCount; i++) {
-    const sectionTitle = analysis.outline[i] || `Key Point ${i + 1}`;
-    const slideType: SlideType =
-      i === 2 ? "statistic" : i === 4 ? "quote" : "content";
+// ============================================================
+// Generate speaker notes (standalone)
+// ============================================================
 
-    const slide: Slide = {
-      id: `slide-${Date.now()}-${slides.length}`,
-      type: slideType,
-      heading: sectionTitle,
-    };
+export async function generateSpeakerNotes(
+  slides: Slide[]
+): Promise<Slide[]> {
+  const systemPrompt = `You are a presentation coach. Generate concise, natural speaker notes for each slide.
 
-    if (slideType === "statistic") {
-      slide.stats = [
-        { label: "Key Metric", value: "85%" },
-        { label: "Growth", value: "+42%" },
-        { label: "Adoption", value: "1.2M" },
-      ];
-    } else if (slideType === "quote") {
-      slide.quote = "The best way to predict the future is to create it.";
-      slide.author = "Peter Drucker";
-    } else {
-      slide.bullets = [
-        `Critical insight about ${sectionTitle.toLowerCase()}`,
-        `Supporting evidence and data`,
-        `Actionable takeaway for the audience`,
-      ];
+Return a JSON array of objects with "id" and "notes" fields.
+Each note should be 1-2 conversational sentences — a brief reminder of what to say, not a script.
+Include transitions between slides where appropriate.
+
+Example: [{"id": "slide-123", "notes": "Introduce the topic and set the context. Transition: 'Now let's look at the data...'"}]
+
+Return ONLY raw JSON array.`;
+
+  const slideSummary = slides.map((s) => ({
+    id: s.id,
+    type: s.type,
+    heading: s.heading,
+    bullets: s.bullets?.slice(0, 3),
+  }));
+
+  const userPrompt = `Generate speaker notes for these slides:
+
+${JSON.stringify(slideSummary, null, 2)}`;
+
+  try {
+    const raw = await callAI(systemPrompt, userPrompt);
+    const notesMap = parseJSON(raw);
+    const notesById = new Map<string, string>();
+    for (const item of notesMap) {
+      notesById.set(item.id, item.notes);
     }
-
-    slides.push(slide);
+    return slides.map((s) => ({
+      ...s,
+      notes: notesById.get(s.id) || s.notes,
+    }));
+  } catch {
+    return slides;
   }
-
-  // Summary slide
-  if (count > 5) {
-    slides.push({
-      id: `slide-${Date.now()}-summary`,
-      type: "summary",
-      heading: "Key Takeaways",
-      bullets: analysis.outline.slice(0, 4).map((item) => `Remember: ${item}`),
-      icon: "✅",
-    });
-  }
-
-  slides.push({
-    id: `slide-${Date.now()}-${count - 1}`,
-    type: "closing",
-    heading: "Thank You",
-    sub: analysis.suggestedTitle,
-    bullets: ["Questions?", "Let's discuss next steps"],
-    icon: "🙏",
-  });
-
-  return slides;
 }
 
 // ============================================================
@@ -773,44 +1132,18 @@ ${JSON.stringify(slides, null, 2)}`;
 }
 
 // ============================================================
-// Generate speaker notes
+// Legacy: generateSlides (batch mode, kept for backward compat)
 // ============================================================
 
-export async function generateSpeakerNotes(
-  slides: Slide[]
+export async function generateSlides(
+  inputText: string,
+  analysis: ExtendedAnalysis,
+  templateId: TemplateId,
+  inputMode: string,
+  onProgress?: (progress: GenerationProgress) => void,
+  outline?: OutlineSection[]
 ): Promise<Slide[]> {
-  const systemPrompt = `You are a presentation coach. Generate concise, natural speaker notes for each slide.
-
-Return a JSON array of objects with "id" and "notes" fields.
-Each note should be 1-2 conversational sentences — a brief reminder of what to say, not a script. Include transitions between slides where appropriate.
-
-Example: [{"id": "slide-123", "notes": "Introduce the topic and set the context. Transition: 'Now let's look at the data...'"}]
-
-Return ONLY raw JSON array.`;
-
-  const slideSummary = slides.map((s) => ({
-    id: s.id,
-    type: s.type,
-    heading: s.heading,
-    bullets: s.bullets?.slice(0, 3),
-  }));
-
-  const userPrompt = `Generate speaker notes for these slides:
-
-${JSON.stringify(slideSummary, null, 2)}`;
-
-  try {
-    const raw = await callAI(systemPrompt, userPrompt);
-    const notesMap = parseJSON(raw);
-    const notesById = new Map<string, string>();
-    for (const item of notesMap) {
-      notesById.set(item.id, item.notes);
-    }
-    return slides.map((s) => ({
-      ...s,
-      notes: notesById.get(s.id) || s.notes,
-    }));
-  } catch {
-    return slides;
-  }
+  // Delegate to per-slide generation with default plans
+  const plans = createDefaultSlidePlan(analysis);
+  return generateSlidesOneByOne(inputText, analysis, templateId, inputMode, onProgress, plans);
 }

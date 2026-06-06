@@ -2,15 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Slide, TemplateId, InputMode } from "@/types";
 import {
   analyzeInput,
-  generateSlides,
+  generateSlidesOneByOne,
   generateSpeakerNotes,
   rewriteSlidesStyle,
   enhanceContent,
   generateOutline,
   summarizeInput,
   autoSelectTemplate,
+  finalQualityCheck,
   type ExtendedAnalysis,
-  type OutlineSection,
+  type SlidePlan,
 } from "@/lib/ai-engine";
 
 export async function POST(request: NextRequest) {
@@ -33,11 +34,7 @@ export async function POST(request: NextRequest) {
     };
 
     // ── Input validation ──
-    if (
-      !inputText ||
-      typeof inputText !== "string" ||
-      inputText.trim().length < 2
-    ) {
+    if (!inputText || typeof inputText !== "string" || inputText.trim().length < 2) {
       return NextResponse.json(
         { error: "Please provide content to generate a presentation." },
         { status: 400 }
@@ -47,10 +44,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        {
-          error:
-            "OpenRouter API key not configured. Set OPENROUTER_API_KEY in environment.",
-        },
+        { error: "OpenRouter API key not configured. Set OPENROUTER_API_KEY in environment." },
         { status: 500 }
       );
     }
@@ -68,7 +62,6 @@ export async function POST(request: NextRequest) {
     try {
       analysis = await analyzeInput(processedInput, inputMode);
     } catch {
-      // Fallback analysis
       analysis = {
         category: "general" as const,
         audience: "general" as const,
@@ -85,40 +78,35 @@ export async function POST(request: NextRequest) {
 
     // Override slide count if user specified
     if (requestedCount) {
-      analysis.suggestedSlideCount = Math.min(
-        Math.max(requestedCount, 3),
-        25
-      );
+      analysis.suggestedSlideCount = Math.min(Math.max(requestedCount, 3), 25);
     }
 
-    // Auto-select template if none provided or if AI suggested a better one
+    // Auto-select template
     const effectiveTemplate: TemplateId =
       templateId ||
       analysis.suggestedTemplate ||
       autoSelectTemplate(analysis.category, analysis.audience, analysis.purpose);
 
-    // ── Step 3: Generate detailed outline ──
-    let outline: OutlineSection[] | undefined;
+    // ── Step 3: Generate detailed slide plan (outline) ──
+    let slidePlans: SlidePlan[] | undefined;
     try {
-      outline = await generateOutline(processedInput, analysis);
+      slidePlans = await generateOutline(processedInput, analysis);
     } catch {
-      // Outline is optional — continue without it
-      outline = undefined;
+      slidePlans = undefined;
     }
 
-    // ── Step 4: Generate slides ──
+    // ── Step 4: Generate slides ONE BY ONE ──
     let slides: Slide[];
     try {
-      slides = await generateSlides(
+      slides = await generateSlidesOneByOne(
         processedInput,
         analysis,
         effectiveTemplate,
         inputMode,
-        undefined, // progress callback (server-side, no SSE)
-        outline
+        undefined, // no progress callback on server
+        slidePlans
       );
     } catch {
-      // Fallback slides
       slides = generateFallbackSlides(analysis);
     }
 
@@ -135,10 +123,13 @@ export async function POST(request: NextRequest) {
     try {
       slides = await generateSpeakerNotes(slides);
     } catch {
-      // Notes are optional, continue without them
+      // Notes are optional
     }
 
-    // ── Step 7: Apply style rewrite if requested ──
+    // ── Step 7: Final quality check ──
+    slides = finalQualityCheck(slides, analysis);
+
+    // ── Step 8: Apply style rewrite if requested ──
     if (style && style !== "business") {
       try {
         slides = await rewriteSlidesStyle(slides, style);
@@ -162,37 +153,35 @@ export async function POST(request: NextRequest) {
         keywords: analysis.keywords,
       },
       templateUsed: effectiveTemplate,
-      outline,
     });
   } catch (err) {
     console.error("Generation API error:", err);
     return NextResponse.json(
       {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Failed to generate presentation. Please try again.",
+        error: err instanceof Error ? err.message : "Failed to generate presentation. Please try again.",
       },
       { status: 500 }
     );
   }
 }
 
-// ── Fallback slide generation (inline) ──
+// ── Fallback slide generation ──
 
 function generateFallbackSlides(analysis: ExtendedAnalysis): Slide[] {
   const total = analysis.suggestedSlideCount;
-  const slides: Slide[] = [
-    {
-      id: `slide-${Date.now()}-0`,
-      type: "title",
-      heading: analysis.suggestedTitle,
-      sub: analysis.suggestedSubtitle,
-      icon: "📊",
-    },
-  ];
+  const slides: Slide[] = [];
 
-  // Agenda slide
+  // Title
+  slides.push({
+    id: `slide-${Date.now()}-0`,
+    type: "title",
+    heading: analysis.suggestedTitle,
+    sub: analysis.suggestedSubtitle,
+    icon: "📊",
+    notes: `Welcome the audience and introduce "${analysis.suggestedTitle}".`,
+  });
+
+  // Agenda
   if (total > 3) {
     slides.push({
       id: `slide-${Date.now()}-1`,
@@ -202,12 +191,13 @@ function generateFallbackSlides(analysis: ExtendedAnalysis): Slide[] {
         ? analysis.outline.slice(0, 5)
         : ["Introduction", "Key Topics", "Analysis", "Recommendations", "Next Steps"],
       icon: "📋",
+      notes: "Walk the audience through what we'll cover today.",
     });
   }
 
   const middleCount = Math.max(total - slides.length - 2, 1);
   for (let i = 0; i < middleCount; i++) {
-    const sectionTitle = analysis.outline[i] || `Key Point ${i + 1}`;
+    const sectionTitle = analysis.outline[i % analysis.outline.length] || `Key Point ${i + 1}`;
     const slideType: "content" | "statistic" | "quote" =
       i === 1 ? "statistic" : i === 3 ? "quote" : "content";
 
@@ -215,6 +205,7 @@ function generateFallbackSlides(analysis: ExtendedAnalysis): Slide[] {
       id: `slide-${Date.now()}-${slides.length}`,
       type: slideType,
       heading: sectionTitle,
+      notes: `Explain the key points about ${sectionTitle.toLowerCase()}.`,
     };
 
     if (slideType === "statistic") {
@@ -237,7 +228,7 @@ function generateFallbackSlides(analysis: ExtendedAnalysis): Slide[] {
     slides.push(slide);
   }
 
-  // Summary slide
+  // Summary
   if (total > 5) {
     slides.push({
       id: `slide-${Date.now()}-summary`,
@@ -248,9 +239,11 @@ function generateFallbackSlides(analysis: ExtendedAnalysis): Slide[] {
         : ["Core insight", "Strategic recommendation", "Action items"]
       ).map((item) => `Remember: ${item}`),
       icon: "✅",
+      notes: "Summarize the key takeaways from the presentation.",
     });
   }
 
+  // Closing
   slides.push({
     id: `slide-${Date.now()}-${total - 1}`,
     type: "closing",
@@ -258,6 +251,7 @@ function generateFallbackSlides(analysis: ExtendedAnalysis): Slide[] {
     sub: analysis.suggestedTitle,
     bullets: ["Questions?", "Let's discuss next steps"],
     icon: "🙏",
+    notes: "Thank the audience and open the floor for questions.",
   });
 
   return slides;

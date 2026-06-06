@@ -167,6 +167,7 @@ export interface Slide {
   icon?: string;
   notes?: string;
   layout?: SlideLayout;
+  index?: number; // Position in the presentation (0-based)
 }
 
 export type SlideLayout =
