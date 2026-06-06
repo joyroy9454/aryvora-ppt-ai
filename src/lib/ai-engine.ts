@@ -1214,122 +1214,353 @@ function ensureVisualFields(plan: Partial<SlidePlan> & { index: number; type: Sl
 }
 
 function createDefaultSlidePlan(analysis: ExtendedAnalysis): SlidePlan[] {
+  // Phase 4: Use the intelligent layout engine for diverse, balanced layouts
+  return createBalancedSlidePlan(analysis, analysis.outline);
+}
+
+// ============================================================
+// PHASE 4 — Advanced Layout Engine
+// ============================================================
+
+/**
+ * Layout selection rules per category.
+ * Each category has preferred layouts and frequency rules.
+ */
+const categoryLayoutPreferences: Record<string, {
+  preferred: SlideType[];
+  avoid: SlideType[];
+  maxConsecutiveSameType: number;
+  dataHeavy: boolean;
+}> = {
+  academic: { preferred: ["content", "two-column", "diagram", "quote"], avoid: ["statistic", "chart"], maxConsecutiveSameType: 2, dataHeavy: false },
+  student: { preferred: ["content", "image-left", "image-right", "diagram", "qa"], avoid: ["statistic", "chart"], maxConsecutiveSameType: 2, dataHeavy: false },
+  business: { preferred: ["content", "statistic", "chart", "comparison", "case-study"], avoid: ["diagram"], maxConsecutiveSameType: 2, dataHeavy: true },
+  corporate: { preferred: ["content", "statistic", "chart", "comparison", "summary"], avoid: ["diagram", "qa"], maxConsecutiveSameType: 2, dataHeavy: true },
+  startup: { preferred: ["content", "statistic", "comparison", "case-study", "quote"], avoid: ["diagram"], maxConsecutiveSameType: 2, dataHeavy: true },
+  research: { preferred: ["content", "statistic", "chart", "diagram", "two-column"], avoid: ["quote"], maxConsecutiveSameType: 2, dataHeavy: true },
+  seminar: { preferred: ["content", "image-left", "image-right", "qa", "diagram"], avoid: ["statistic", "chart"], maxConsecutiveSameType: 2, dataHeavy: false },
+  marketing: { preferred: ["content", "image-left", "image-right", "case-study", "statistic", "quote"], avoid: ["diagram"], maxConsecutiveSameType: 2, dataHeavy: false },
+  technical: { preferred: ["content", "diagram", "process", "two-column", "case-study"], avoid: ["quote"], maxConsecutiveSameType: 2, dataHeavy: true },
+  creative: { preferred: ["content", "image-left", "image-right", "case-study", "quote"], avoid: ["statistic", "chart"], maxConsecutiveSameType: 2, dataHeavy: false },
+  general: { preferred: ["content", "two-column", "image-left", "image-right", "quote"], avoid: [], maxConsecutiveSameType: 2, dataHeavy: false },
+  training: { preferred: ["content", "diagram", "process", "case-study", "qa"], avoid: ["statistic"], maxConsecutiveSameType: 2, dataHeavy: false },
+  workshop: { preferred: ["content", "diagram", "case-study", "qa", "image-left"], avoid: ["statistic", "chart"], maxConsecutiveSameType: 2, dataHeavy: false },
+  sales: { preferred: ["content", "case-study", "statistic", "comparison", "quote"], avoid: ["diagram"], maxConsecutiveSameType: 2, dataHeavy: true },
+  proposal: { preferred: ["content", "statistic", "chart", "comparison", "diagram"], avoid: ["quote"], maxConsecutiveSameType: 2, dataHeavy: true },
+  report: { preferred: ["content", "statistic", "chart", "summary", "two-column"], avoid: ["quote", "qa"], maxConsecutiveSameType: 2, dataHeavy: true },
+  "product-demo": { preferred: ["content", "image-left", "image-right", "case-study", "diagram"], avoid: ["statistic"], maxConsecutiveSameType: 2, dataHeavy: false },
+};
+
+/**
+ * Intelligently selects the best layout for a slide based on:
+ * - Content (heading, key points, section)
+ * - Category preferences
+ * - Position in the deck
+ * - Previous slide types (avoid repetition)
+ * - Visual balance across the deck
+ */
+export function selectOptimalLayout(
+  index: number,
+  total: number,
+  heading: string,
+  keyPoints: string[],
+  category: TopicCategory,
+  previousTypes: SlideType[],
+  usedTypes: Map<SlideType, number>
+): SlideType {
+  const prefs = categoryLayoutPreferences[category] || categoryLayoutPreferences.general;
+  const position = index / total; // 0 = start, 1 = end
+
+  // Analyze content to determine best layout
+  const contentSignals = analyzeContentSignals(heading, keyPoints);
+
+  // Build candidate list based on content signals and category preferences
+  const candidates: { type: SlideType; score: number }[] = [];
+
+  for (const type of prefs.preferred) {
+    let score = 50; // Base score
+
+    // Content signal matching
+    if (contentSignals.hasComparison && (type === "comparison" || type === "two-column")) score += 30;
+    if (contentSignals.hasData && (type === "statistic" || type === "chart")) score += 30;
+    if (contentSignals.hasProcess && (type === "process" || type === "timeline")) score += 30;
+    if (contentSignals.hasQuote && type === "quote") score += 40;
+    if (contentSignals.hasCaseStudy && type === "case-study") score += 35;
+    if (contentSignals.hasVisual && (type === "image-left" || type === "image-right")) score += 20;
+    if (contentSignals.hasDiagram && type === "diagram") score += 30;
+
+    // Position-based scoring
+    if (position < 0.2 && type === "content") score += 10; // Early slides: content
+    if (position > 0.7 && type === "summary") score += 20; // Late slides: summary
+    if (position > 0.85 && type === "qa") score += 15; // Near end: Q&A
+
+    // Avoid overused types
+    const usedCount = usedTypes.get(type) || 0;
+    if (usedCount > 0) {
+      score -= usedCount * 15; // Penalize overused types
+    }
+
+    // Avoid consecutive same types
+    if (previousTypes.length > 0 && previousTypes[previousTypes.length - 1] === type) {
+      score -= 40; // Strong penalty for consecutive same type
+    }
+
+    // Avoid types in the "avoid" list
+    if (prefs.avoid.includes(type)) {
+      score -= 25;
+    }
+
+    // Category-specific bonuses
+    if (prefs.dataHeavy && (type === "statistic" || type === "chart")) {
+      score += 10;
+    }
+
+    candidates.push({ type, score });
+  }
+
+  // Sort by score and pick the best
+  candidates.sort((a, b) => b.score - a.score);
+
+  // Add some randomness to avoid predictable patterns (top 3)
+  const topCandidates = candidates.slice(0, Math.min(3, candidates.length));
+  const selected = topCandidates[Math.floor(Math.random() * topCandidates.length)];
+
+  return selected?.type || "content";
+}
+
+/**
+ * Analyze content to detect signals for layout selection.
+ */
+function analyzeContentSignals(heading: string, keyPoints: string[]): {
+  hasComparison: boolean;
+  hasData: boolean;
+  hasProcess: boolean;
+  hasQuote: boolean;
+  hasCaseStudy: boolean;
+  hasVisual: boolean;
+  hasDiagram: boolean;
+} {
+  const text = `${heading} ${keyPoints.join(" ")}`.toLowerCase();
+
+  return {
+    hasComparison: /vs\.?|versus|compare|comparison|pros?|cons?|advantages?|disadvantages?|difference|better|worse|or|alternative/i.test(text),
+    hasData: /%|percent|growth|increase|decrease|revenue|profit|loss|metric|kpi|data|statistics?|numbers?|rate|ratio/i.test(text),
+    hasProcess: /step|phase|stage|process|workflow|pipeline|sequence|order|first|then|next|finally|how to|guide/i.test(text),
+    hasQuote: /"[^"]*"|said|according to|quote|testimonial|feedback|review/i.test(text),
+    hasCaseStudy: /case study|example|success|story|client|customer|result|outcome|impact|real.world|implementation/i.test(text),
+    hasVisual: /image|photo|picture|visual|show|display|illustrate|diagram|figure|screenshot/i.test(text),
+    hasDiagram: /architecture|system|component|structure|flow|network|layer|module|integration|api|database|server/i.test(text),
+  };
+}
+
+/**
+ * Creates a visually balanced slide plan with diverse layouts.
+ * This replaces the old fixed-pattern approach with intelligent layout selection.
+ */
+export function createBalancedSlidePlan(
+  analysis: ExtendedAnalysis,
+  outline: string[]
+): SlidePlan[] {
   const total = analysis.suggestedSlideCount;
   const plans: SlidePlan[] = [];
+  const usedTypes = new Map<SlideType, number>();
+  const previousTypes: SlideType[] = [];
 
-  // Title slide
-  plans.push({
-    index: 0,
-    type: "title",
-    heading: analysis.suggestedTitle,
-    sectionTitle: "Title",
-    keyPoints: [],
-    notes: `Welcome the audience and introduce "${analysis.suggestedTitle}".`,
+  // Title slide (always first)
+  plans.push(makePlan(0, "title", analysis.suggestedTitle, "Title", [], `Welcome the audience and introduce "${analysis.suggestedTitle}".`, analysis.presentationCategory));
+  usedTypes.set("title", 1);
+  previousTypes.push("title");
+
+  // Agenda slide (always second)
+  const agendaPoints = outline.slice(0, 5).length > 0
+    ? outline.slice(0, 5)
+    : ["Introduction", "Key Topics", "Analysis", "Recommendations", "Next Steps"];
+  plans.push(makePlan(1, "content", "Agenda", "Overview", agendaPoints, "Walk the audience through what we'll cover today.", analysis.presentationCategory));
+  usedTypes.set("content", 1);
+  previousTypes.push("content");
+
+  // Content slides with intelligent layout selection
+  const contentCount = total - 3; // minus title, agenda, closing
+  for (let i = 0; i < contentCount; i++) {
+    const sectionTitle = outline[i % outline.length] || `Key Point ${i + 1}`;
+    const isLast = i === contentCount - 1;
+
+    let type: SlideType;
+
+    if (isLast) {
+      // Second-to-last slide: summary
+      type = "summary";
+    } else {
+      // Use layout engine to select optimal type
+      const keyPoints = generateKeyPointsForSection(sectionTitle, analysis);
+      type = selectOptimalLayout(
+        i + 2, // index (offset by title + agenda)
+        total,
+        sectionTitle,
+        keyPoints,
+        analysis.presentationCategory,
+        previousTypes,
+        usedTypes
+      );
+    }
+
+    const keyPoints = generateKeyPointsForSection(sectionTitle, analysis, type);
+    const notes = generateNotesForType(type, sectionTitle, analysis);
+
+    plans.push(makePlan(i + 2, type, sectionTitle, sectionTitle, keyPoints, notes, analysis.presentationCategory));
+
+    usedTypes.set(type, (usedTypes.get(type) || 0) + 1);
+    previousTypes.push(type);
+  }
+
+  // Closing slide (always last)
+  plans.push(makePlan(total - 1, "closing", "Thank You", "Closing", ["Questions?", "Let's discuss next steps"], "Thank the audience and open the floor for questions.", analysis.presentationCategory));
+
+  return plans;
+}
+
+function makePlan(
+  index: number,
+  type: SlideType,
+  heading: string,
+  sectionTitle: string,
+  keyPoints: string[],
+  notes: string,
+  category: TopicCategory
+): SlidePlan {
+  const plan: SlidePlan = {
+    index,
+    type,
+    heading,
+    sectionTitle,
+    keyPoints,
+    notes,
     needsImage: false,
     imageKeyword: "",
     imagePosition: "none",
     visualType: "none",
     visualCaption: "",
-  });
+  };
 
-  // Agenda slide
-  plans.push({
-    index: 1,
-    type: "content",
-    heading: "Agenda",
-    sectionTitle: "Overview",
-    keyPoints: analysis.outline.slice(0, 5).length > 0
-      ? analysis.outline.slice(0, 5)
-      : ["Introduction", "Key Topics", "Analysis", "Recommendations", "Next Steps"],
-    notes: "Walk the audience through what we'll cover today.",
-    needsImage: false,
-    imageKeyword: "",
-    imagePosition: "none",
-    visualType: "icon",
-    visualCaption: "",
-  });
-
-  // Content slides
-  const contentCount = total - 3; // minus title, agenda, closing
-  for (let i = 0; i < contentCount; i++) {
-    const sectionTitle = analysis.outline[i % analysis.outline.length] || `Key Point ${i + 1}`;
-    const isLast = i === contentCount - 1;
-
-    let type: SlideType = "content";
-    if (isLast) {
-      type = "summary";
-    } else if (i === 2) {
-      type = "statistic";
-    } else if (i === 4) {
-      type = "quote";
-    } else if (i === 6) {
-      type = "two-column";
-    } else if (i > 0 && i % 5 === 0) {
-      type = "divider";
-    }
-
-    const plan: SlidePlan = {
-      index: i + 2,
-      type,
-      heading: sectionTitle,
-      sectionTitle,
-      keyPoints: [
-        `Key insight about ${sectionTitle.toLowerCase()}`,
-        `Supporting evidence or example`,
-        `Actionable takeaway`,
-      ],
-      notes: `Explain the key points about ${sectionTitle.toLowerCase()}.`,
-      needsImage: false,
-      imageKeyword: "",
-      imagePosition: "none",
-      visualType: "none",
-      visualCaption: "",
-    };
-
-    if (type === "statistic") {
+  // Set visual properties based on type
+  switch (type) {
+    case "title":
+      plan.needsImage = false;
+      plan.visualType = "none";
+      break;
+    case "statistic":
       plan.keyPoints = ["85% improvement", "+42% growth", "1.2M users"];
       plan.notes = "Present the key metrics and what they mean.";
       plan.visualType = "chart";
-      plan.visualCaption = `Data visualization for: ${sectionTitle}`;
-    } else if (type === "quote") {
+      plan.visualCaption = `Data visualization for: ${heading}`;
+      break;
+    case "chart":
+      plan.keyPoints = ["Category A: 45%", "Category B: 30%", "Category C: 25%"];
+      plan.notes = "Explain the key insight from this data.";
+      plan.visualType = "chart";
+      plan.visualCaption = `Chart: ${heading}`;
+      break;
+    case "quote":
       plan.keyPoints = [];
       plan.notes = "Share this impactful quote and explain its relevance.";
       plan.visualType = "icon";
-    } else if (type === "summary") {
-      plan.heading = "Key Takeaways";
-      plan.keyPoints = analysis.outline.slice(0, 4).map((item) => `Remember: ${item}`);
-      plan.notes = "Summarize the key takeaways from the presentation.";
+      break;
+    case "comparison":
+      plan.keyPoints = ["Option A benefits", "Option A drawbacks"];
+      plan.notes = "Walk through the comparison and recommend the best option.";
       plan.visualType = "icon";
-    } else if (type === "divider") {
-      plan.heading = sectionTitle;
+      break;
+    case "two-column":
+      plan.keyPoints = ["Left column point 1", "Left column point 2"];
+      plan.notes = "Explain both sides of the comparison.";
+      plan.visualType = "icon";
+      break;
+    case "timeline":
+      plan.keyPoints = ["Phase 1: Planning", "Phase 2: Development", "Phase 3: Launch"];
+      plan.notes = "Walk through the timeline and key milestones.";
+      plan.visualType = "diagram";
+      break;
+    case "process":
+      plan.keyPoints = ["Step 1: Define", "Step 2: Design", "Step 3: Implement"];
+      plan.notes = "Explain each step of the process.";
+      plan.visualType = "diagram";
+      break;
+    case "divider":
       plan.keyPoints = [];
-      plan.notes = `Transition to the next section: ${sectionTitle}.`;
+      plan.notes = `Transition to the next section: ${heading}.`;
       plan.needsImage = true;
       plan.imagePosition = "background";
       plan.visualType = "image";
-    } else if (type === "content") {
+      break;
+    case "summary":
+      plan.heading = "Key Takeaways";
+      plan.keyPoints = ["Key insight 1", "Key insight 2", "Key insight 3", "Key insight 4"];
+      plan.notes = "Summarize the key takeaways from the presentation.";
       plan.visualType = "icon";
-    }
-
-    plans.push(plan);
+      break;
+    case "qa":
+      plan.keyPoints = ["What questions do you have?", "Let's discuss the next steps"];
+      plan.notes = "Invite questions from the audience.";
+      plan.visualType = "icon";
+      break;
+    case "case-study":
+      plan.keyPoints = ["The challenge", "The solution", "The results"];
+      plan.notes = "Walk through this real-world example and its outcomes.";
+      plan.visualType = "image";
+      plan.needsImage = true;
+      plan.imagePosition = "right";
+      break;
+    case "diagram":
+      plan.keyPoints = ["Component A connects to B", "Data flows through C", "Output goes to D"];
+      plan.notes = "Explain the diagram and how the components interact.";
+      plan.visualType = "diagram";
+      break;
+    case "closing":
+      plan.keyPoints = ["Questions?", "Let's discuss next steps"];
+      plan.notes = "Thank the audience and open the floor for questions.";
+      plan.visualType = "none";
+      break;
+    default: // content
+      plan.keyPoints = [`Key insight about ${heading.toLowerCase()}`, `Supporting evidence or example`, `Actionable takeaway`];
+      plan.notes = `Explain the key points about ${heading.toLowerCase()}.`;
+      plan.visualType = "icon";
+      break;
   }
 
-  // Closing slide
-  plans.push({
-    index: total - 1,
-    type: "closing",
-    heading: "Thank You",
-    sectionTitle: "Closing",
-    keyPoints: ["Questions?", "Let's discuss next steps"],
-    notes: "Thank the audience and open the floor for questions.",
-    needsImage: false,
-    imageKeyword: "",
-    imagePosition: "none",
-    visualType: "none",
-    visualCaption: "",
-  });
+  return plan;
+}
 
-  return plans;
+function generateKeyPointsForSection(sectionTitle: string, analysis: ExtendedAnalysis, type?: SlideType): string[] {
+  if (type === "statistic") return ["85% improvement", "+42% growth", "1.2M users"];
+  if (type === "quote") return [];
+  if (type === "divider") return [];
+  if (type === "summary") return ["Key insight 1", "Key insight 2", "Key insight 3"];
+  if (type === "case-study") return ["The challenge", "The solution", "The results"];
+  if (type === "diagram") return ["Component A", "Component B", "Component C"];
+  if (type === "comparison") return ["Option A benefits", "Option A drawbacks"];
+  if (type === "timeline") return ["Phase 1", "Phase 2", "Phase 3"];
+  if (type === "process") return ["Step 1", "Step 2", "Step 3"];
+  if (type === "qa") return ["What questions do you have?"];
+  return [`Key insight about ${sectionTitle.toLowerCase()}`, `Supporting evidence`, `Actionable takeaway`];
+}
+
+function generateNotesForType(type: SlideType, heading: string, analysis: ExtendedAnalysis): string {
+  switch (type) {
+    case "title": return `Welcome the audience and introduce "${heading}".`;
+    case "statistic": return "Present the key metrics and what they mean.";
+    case "chart": return "Explain the key insight from this data.";
+    case "quote": return "Share this impactful quote and explain its relevance.";
+    case "comparison": return "Walk through the comparison and recommend the best option.";
+    case "timeline": return "Walk through the timeline and key milestones.";
+    case "process": return "Explain each step of the process.";
+    case "divider": return `Transition to the next section: ${heading}.`;
+    case "summary": return "Summarize the key takeaways from the presentation.";
+    case "qa": return "Invite questions from the audience.";
+    case "case-study": return "Walk through this real-world example and its outcomes.";
+    case "diagram": return "Explain the diagram and how the components interact.";
+    case "closing": return "Thank the audience and open the floor for questions.";
+    default: return `Explain the key points about ${heading.toLowerCase()}.`;
+  }
 }
 
 // ============================================================
@@ -1610,6 +1841,20 @@ function getSlideTypeInstructions(type: SlideType): string {
 - "bullets": 2-3 anticipated questions to seed discussion
 - "icon": ❓
 - "notes": "Invite questions from the audience"`;
+    case "case-study":
+      return `Case study slide requirements:
+- "heading": The case study title (specific, real-world)
+- "bullets": 3 items: "The Challenge", "The Solution", "The Results"
+- "icon": 📋
+- "notes": Walk through this real-world example and its outcomes
+- Include specific metrics and results where possible`;
+    case "diagram":
+      return `Diagram slide requirements:
+- "heading": What the diagram shows
+- "bullets": 3-4 components or steps in the diagram
+- "icon": 🔀
+- "notes": Explain the diagram and how components interact
+- Describe connections, flows, or relationships between elements`;
     default:
       return `Standard slide requirements:
 - "heading": Specific, engaging title
@@ -1681,6 +1926,13 @@ function createSlideFromPlan(plan: SlidePlan, analysis: ExtendedAnalysis): Slide
     case "closing":
       slide.bullets = ["Questions?", "Let's discuss next steps"];
       break;
+    case "case-study":
+      slide.bullets = plan.keyPoints;
+      slide.imageUrl = getPicsumUrl(analysis.keywords[0] || analysis.category);
+      break;
+    case "diagram":
+      slide.bullets = plan.keyPoints;
+      break;
   }
 
   return slide;
@@ -1703,6 +1955,8 @@ function getIconForType(type: SlideType, category: string): string {
     chart: "📊",
     summary: "✅",
     qa: "❓",
+    "case-study": "📋",
+    diagram: "🔀",
     blank: "📄",
   };
   return icons[type] || "📌";
@@ -2085,4 +2339,18 @@ export async function generateSlides(
   // Delegate to per-slide generation with default plans (with visual intelligence)
   const plans = suggestVisualsForPlan(createDefaultSlidePlan(analysis), analysis);
   return generateSlidesOneByOne(inputText, analysis, templateId, inputMode, onProgress, plans);
+}
+
+// ============================================================
+// Image URL helpers (used by createSlideFromPlan and attachImagesToSlides)
+// ============================================================
+
+function getPicsumUrl(keyword: string, width = 800, height = 600): string {
+  const seed = encodeURIComponent(keyword.toLowerCase().replace(/\s+/g, "-"));
+  return `https://picsum.photos/seed/${seed}/${width}/${height}`;
+}
+
+function getUnsplashUrl(keyword: string, width = 800, height = 600): string {
+  const query = encodeURIComponent(keyword.toLowerCase().trim());
+  return `https://source.unsplash.com/${width}x${height}/?${query}`;
 }

@@ -131,6 +131,8 @@ export type SlideType =
   | "chart"
   | "summary"
   | "qa"
+  | "case-study"
+  | "diagram"
   | "blank";
 
 export interface SlideStat {
@@ -503,6 +505,8 @@ export const SLIDE_TEMPLATES: {
   { type: "divider", label: "Section Divider", desc: "Section break slide", icon: "➖", category: "special" },
   { type: "summary", label: "Summary", desc: "Key takeaways", icon: "✅", category: "special" },
   { type: "qa", label: "Q&A", desc: "Questions & answers", icon: "❓", category: "special" },
+  { type: "case-study", label: "Case Study", desc: "Real-world example with results", icon: "📋", category: "data" },
+  { type: "diagram", label: "Diagram", desc: "Visual diagram or flow", icon: "🔀", category: "visual" },
 ];
 
 // ---------- Icons ----------
