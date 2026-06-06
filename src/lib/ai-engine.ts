@@ -1,7 +1,8 @@
 // ============================================================
-// AI Intelligence Layer — Phase 2: Visual Intelligence
+// AI Intelligence Layer — Phase 3: Category-Aware Design System
 // Per-slide generation, content enhancement, quality assurance
 // Visual metadata: image suggestions, visual types per topic
+// Category-specific design profiles, tone, and style rules
 // ============================================================
 
 import type {
@@ -12,6 +13,7 @@ import type {
   GenerationProgress,
   TopicCategory,
   AudienceType,
+  ToneType,
 } from "@/types";
 
 const MODEL = process.env.OPENROUTER_MODEL || "openrouter/owl-alpha";
@@ -76,7 +78,7 @@ export async function callAI(
   throw new Error("AI request failed after retries");
 }
 
-// ---------- JSON parser with code-fence fallback ----------
+// ---------- JSON parser with code-fallback ----------
 
 export function parseJSON(raw: string): any {
   try {
@@ -95,6 +97,359 @@ export function parseJSON(raw: string): any {
 export interface ExtendedAnalysis extends AIAnalysis {
   purpose: "inform" | "persuade" | "educate" | "pitch" | "report" | "inspire";
   suggestedTemplate: TemplateId;
+  /** The specific presentation category detected (e.g. "startup", "academic", "sales") */
+  presentationCategory: TopicCategory;
+}
+
+// ============================================================
+// Category Design Profiles — Phase 3
+// ============================================================
+
+/**
+ * Complete design profile for a presentation category.
+ * Defines tone, template, visual strategy, content rules, and structure rules.
+ */
+export interface CategoryDesignProfile {
+  category: TopicCategory;
+  tone: ToneType;
+  template: TemplateId;
+  visualStrategy: "minimal" | "clean" | "bold" | "visual" | "structured" | "diagram-friendly";
+  maxWordsPerBullet: number;
+  maxBulletsPerSlide: number;
+  headingStyle: "formal" | "engaging" | "technical" | "simple";
+  imageFrequency: "none" | "selective" | "frequent";
+  chartFrequency: "none" | "selective" | "frequent";
+  diagramFrequency: "none" | "selective" | "frequent";
+  contentGuidelines: string;
+  slideStructureRules: string;
+}
+
+/**
+ * Returns the complete design profile for a given presentation category.
+ * This is the single source of truth for category-specific design rules.
+ */
+export function getCategoryDesignProfile(category: TopicCategory): CategoryDesignProfile {
+  const profiles: Record<TopicCategory, CategoryDesignProfile> = {
+    academic: {
+      category: "academic",
+      tone: "academic",
+      template: "academic",
+      visualStrategy: "minimal",
+      maxWordsPerBullet: 12,
+      maxBulletsPerSlide: 5,
+      headingStyle: "formal",
+      imageFrequency: "none",
+      chartFrequency: "none",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Use formal academic language. Cite sources where appropriate. Avoid contractions. Be precise and objective. Prioritize evidence over opinion. Use precise terminology. Each bullet should convey a complete thought — up to 12 words is acceptable for academic depth.",
+      slideStructureRules:
+        "Follow a logical academic structure: Introduction → Literature Context → Methodology → Findings → Discussion → Conclusion. Use section dividers between major parts. Include a references slide if citing sources. Keep slides text-dense but well-organized. Avoid decorative elements.",
+    },
+    student: {
+      category: "student",
+      tone: "conversational",
+      template: "education",
+      visualStrategy: "clean",
+      maxWordsPerBullet: 10,
+      maxBulletsPerSlide: 5,
+      headingStyle: "engaging",
+      imageFrequency: "selective",
+      chartFrequency: "selective",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Use clear, accessible language. Explain concepts thoroughly but simply. Use relatable examples. Keep bullets to 10 words max. Use active voice. Include diagrams to illustrate complex ideas. Make it engaging but educational.",
+      slideStructureRules:
+        "Start with learning objectives. Use a clear agenda. Break content into digestible sections with dividers. Include a summary/recap slide. End with discussion questions or next steps. Use visuals to break up text-heavy sections.",
+    },
+    business: {
+      category: "business",
+      tone: "formal",
+      template: "corporate",
+      visualStrategy: "structured",
+      maxWordsPerBullet: 8,
+      maxBulletsPerSlide: 4,
+      headingStyle: "formal",
+      imageFrequency: "selective",
+      chartFrequency: "frequent",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Be concise and results-focused. Lead with key metrics. Use industry-standard terminology. Keep bullets to 8 words max. Focus on business impact and ROI. Use data to support every claim. Avoid jargon unless the audience expects it.",
+      slideStructureRules:
+        "Open with executive summary. Use data-driven slides with charts. Include a market/competitive analysis section. End with clear recommendations and next steps. Use section dividers for major topic shifts. Keep the flow: Problem → Analysis → Solution → Impact.",
+    },
+    corporate: {
+      category: "corporate",
+      tone: "formal",
+      template: "corporate",
+      visualStrategy: "structured",
+      maxWordsPerBullet: 8,
+      maxBulletsPerSlide: 4,
+      headingStyle: "formal",
+      imageFrequency: "selective",
+      chartFrequency: "selective",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Use professional, polished language. Maintain brand-appropriate tone. Be concise — 8 words per bullet max. Focus on strategic priorities and outcomes. Use formal headings. Avoid colloquialisms. Every slide should serve a clear business purpose.",
+      slideStructureRules:
+        "Follow corporate deck conventions: Title → Agenda → Executive Summary → Key Sections → Financials/Metrics → Recommendations → Next Steps → Closing. Use minimal but strategic visuals. Maintain consistent, clean layout throughout.",
+    },
+    startup: {
+      category: "startup",
+      tone: "persuasive",
+      template: "startup",
+      visualStrategy: "bold",
+      maxWordsPerBullet: 6,
+      maxBulletsPerSlide: 4,
+      headingStyle: "engaging",
+      imageFrequency: "selective",
+      chartFrequency: "selective",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Be bold and concise. Focus on impact and vision. Use strong action verbs. Keep sentences short — 6 words per bullet max. Tell a compelling story. Highlight traction, market opportunity, and competitive advantage. Create excitement and urgency.",
+      slideStructureRules:
+        "Follow the startup pitch structure: Problem → Solution → Market Opportunity → Product → Traction → Business Model → Team → Ask. Use bold visuals and high-impact slides. Keep text minimal — let the story drive. End with a clear call to action.",
+    },
+    research: {
+      category: "research",
+      tone: "academic",
+      template: "research",
+      visualStrategy: "structured",
+      maxWordsPerBullet: 12,
+      maxBulletsPerSlide: 5,
+      headingStyle: "technical",
+      imageFrequency: "selective",
+      chartFrequency: "frequent",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Be precise and evidence-based. Use technical terminology appropriately. Include data, statistics, and citations. Up to 12 words per bullet for methodological detail. Present findings objectively. Use charts and data visualizations extensively.",
+      slideStructureRules:
+        "Follow research presentation structure: Background → Research Question → Methodology → Data/Results → Analysis → Discussion → Limitations → Future Work → Conclusion. Use data-heavy slides with charts. Include methodology diagrams.",
+    },
+    seminar: {
+      category: "seminar",
+      tone: "conversational",
+      template: "seminar",
+      visualStrategy: "clean",
+      maxWordsPerBullet: 10,
+      maxBulletsPerSlide: 5,
+      headingStyle: "engaging",
+      imageFrequency: "selective",
+      chartFrequency: "selective",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Be conversational and engaging. Use storytelling techniques. Keep bullets to 10 words max. Include real-world examples and case studies. Encourage interaction. Use a warm, approachable tone. Make complex topics accessible.",
+      slideStructureRules:
+        "Open with a hook or question. Use a clear agenda. Break content into thematic sections with dividers. Include interactive elements or discussion prompts. Use visuals to illustrate key points. End with key takeaways and Q&A.",
+    },
+    marketing: {
+      category: "marketing",
+      tone: "persuasive",
+      template: "marketing",
+      visualStrategy: "visual",
+      maxWordsPerBullet: 8,
+      maxBulletsPerSlide: 4,
+      headingStyle: "engaging",
+      imageFrequency: "frequent",
+      chartFrequency: "selective",
+      diagramFrequency: "none",
+      contentGuidelines:
+        "Be persuasive and energetic. Use storytelling to connect emotionally. Create urgency and excitement. Focus on benefits, not features. Keep bullets to 8 words max. Use power words and action-oriented language. Include social proof and testimonials.",
+      slideStructureRules:
+        "Open with a compelling hook. Use high-impact visuals on most slides. Follow the AIDA model: Attention → Interest → Desire → Action. Include customer stories or case studies. Use before/after comparisons. End with a strong call to action.",
+    },
+    technical: {
+      category: "technical",
+      tone: "technical",
+      template: "dark",
+      visualStrategy: "diagram-friendly",
+      maxWordsPerBullet: 10,
+      maxBulletsPerSlide: 5,
+      headingStyle: "technical",
+      imageFrequency: "selective",
+      chartFrequency: "selective",
+      diagramFrequency: "frequent",
+      contentGuidelines:
+        "Be precise and clear. Use technical terms appropriately — don't oversimplify for a technical audience. Include data, specifications, and architecture details. Up to 10 words per bullet. Use diagrams and flowcharts to explain complex systems. Be specific about technologies and implementations.",
+      slideStructureRules:
+        "Start with system overview or architecture diagram. Use process and diagram slides extensively. Include code snippets or technical specs where relevant. Follow logical technical flow: Overview → Architecture → Implementation → Results → Next Steps. Use dark theme for code-heavy slides.",
+    },
+    creative: {
+      category: "creative",
+      tone: "inspirational",
+      template: "portfolio",
+      visualStrategy: "visual",
+      maxWordsPerBullet: 8,
+      maxBulletsPerSlide: 4,
+      headingStyle: "engaging",
+      imageFrequency: "frequent",
+      chartFrequency: "selective",
+      diagramFrequency: "none",
+      contentGuidelines:
+        "Be inspirational and expressive. Let visuals tell the story. Keep text minimal — 8 words per bullet max. Use evocative, descriptive language. Focus on the creative process and outcomes. Show, don't just tell. Use high-quality imagery throughout.",
+      slideStructureRules:
+        "Lead with strong visual impact. Use full-bleed images and creative layouts. Follow a narrative arc: Inspiration → Process → Work → Impact. Minimize text-heavy slides. Use dividers as visual breaks. Let the portfolio pieces be the focus.",
+    },
+    general: {
+      category: "general",
+      tone: "conversational",
+      template: "minimal",
+      visualStrategy: "clean",
+      maxWordsPerBullet: 10,
+      maxBulletsPerSlide: 5,
+      headingStyle: "simple",
+      imageFrequency: "selective",
+      chartFrequency: "selective",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Be clear and accessible to a broad audience. Avoid jargon. Keep bullets to 10 words max. Use simple, direct language. Balance text and visuals. Make every slide self-contained and understandable. Use a clean, uncluttered approach.",
+      slideStructureRules:
+        "Use a standard presentation structure: Title → Agenda → Content Sections → Summary → Closing. Vary slide types for visual interest. Use section dividers every 4-5 slides. Keep the layout clean and consistent. End with clear takeaways.",
+    },
+    training: {
+      category: "training",
+      tone: "conversational",
+      template: "education",
+      visualStrategy: "clean",
+      maxWordsPerBullet: 10,
+      maxBulletsPerSlide: 5,
+      headingStyle: "simple",
+      imageFrequency: "selective",
+      chartFrequency: "none",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Be instructional and clear. Use step-by-step explanations. Keep bullets to 10 words max. Include practical examples and exercises. Use diagrams to illustrate processes. Be encouraging and supportive. Focus on skill-building and actionable knowledge.",
+      slideStructureRules:
+        "Start with learning objectives. Use a clear agenda. Break content into modules or lessons. Include process/diagram slides for workflows. Add practice exercises or checkpoints. End each module with a recap. Conclude with overall summary and resources.",
+    },
+    workshop: {
+      category: "workshop",
+      tone: "conversational",
+      template: "seminar",
+      visualStrategy: "clean",
+      maxWordsPerBullet: 10,
+      maxBulletsPerSlide: 5,
+      headingStyle: "engaging",
+      imageFrequency: "selective",
+      chartFrequency: "selective",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Be interactive and participatory. Use questions to engage the audience. Keep bullets to 10 words max. Include activities, exercises, and group discussions. Use a warm, facilitative tone. Focus on collaboration and hands-on learning.",
+      slideStructureRules:
+        "Open with introductions and objectives. Alternate between content slides and activity prompts. Use dividers to mark session breaks. Include discussion questions on dedicated slides. Use visuals to support activities. End with action items and follow-up.",
+    },
+    sales: {
+      category: "sales",
+      tone: "persuasive",
+      template: "marketing",
+      visualStrategy: "bold",
+      maxWordsPerBullet: 6,
+      maxBulletsPerSlide: 4,
+      headingStyle: "engaging",
+      imageFrequency: "selective",
+      chartFrequency: "selective",
+      diagramFrequency: "none",
+      contentGuidelines:
+        "Be persuasive and benefit-focused. Lead with value proposition. Keep bullets to 6 words max — be punchy. Use social proof, testimonials, and case studies. Create urgency. Focus on solving the customer's problem. End with a clear next step.",
+      slideStructureRules:
+        "Open with the customer's pain point. Present your solution clearly. Include ROI data and testimonials. Use comparison slides to show competitive advantage. Address objections proactively. Close with pricing/offer and a strong call to action.",
+    },
+    proposal: {
+      category: "proposal",
+      tone: "formal",
+      template: "corporate",
+      visualStrategy: "structured",
+      maxWordsPerBullet: 10,
+      maxBulletsPerSlide: 4,
+      headingStyle: "formal",
+      imageFrequency: "selective",
+      chartFrequency: "selective",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Be formal and thorough. Present a clear, logical argument. Keep bullets to 10 words max. Use data and evidence to support proposals. Be specific about deliverables, timelines, and costs. Maintain a professional, credible tone throughout.",
+      slideStructureRules:
+        "Follow proposal structure: Executive Summary → Problem Statement → Proposed Solution → Approach/Methodology → Timeline → Budget → Team Qualifications → Expected Outcomes → Next Steps. Use structured, data-driven slides. Include a clear ask on the closing slide.",
+    },
+    report: {
+      category: "report",
+      tone: "formal",
+      template: "research",
+      visualStrategy: "structured",
+      maxWordsPerBullet: 10,
+      maxBulletsPerSlide: 5,
+      headingStyle: "formal",
+      imageFrequency: "selective",
+      chartFrequency: "frequent",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Be formal, precise, and data-driven. Present findings objectively. Keep bullets to 10 words max. Use charts and data visualizations extensively. Include specific numbers and metrics. Maintain a neutral, professional tone. Highlight key insights and trends.",
+      slideStructureRules:
+        "Follow report structure: Executive Summary → Background → Methodology → Key Findings → Detailed Analysis → Conclusions → Recommendations → Appendix. Use data-heavy slides with charts. Include trend analysis. End with actionable recommendations.",
+    },
+    "product-demo": {
+      category: "product-demo",
+      tone: "conversational",
+      template: "dark",
+      visualStrategy: "visual",
+      maxWordsPerBullet: 8,
+      maxBulletsPerSlide: 4,
+      headingStyle: "engaging",
+      imageFrequency: "frequent",
+      chartFrequency: "none",
+      diagramFrequency: "selective",
+      contentGuidelines:
+        "Be conversational and demo-focused. Show, don't just tell. Keep bullets to 8 words max. Use screenshots, product images, and live demos. Focus on user benefits and use cases. Be enthusiastic but credible. Include technical details only when relevant.",
+      slideStructureRules:
+        "Open with the problem you solve. Show the product in action with visuals. Walk through key features with screenshots. Include a use case or customer story. Show integration/architecture with diagrams. End with pricing, next steps, and call to action.",
+    },
+  };
+
+  return profiles[category] || profiles.general;
+}
+
+/**
+ * Returns specific tone instructions for a given presentation category.
+ * These are injected into the AI prompt to guide content generation.
+ */
+export function getCategoryToneInstructions(category: TopicCategory): string {
+  const instructions: Record<TopicCategory, string> = {
+    academic:
+      "Use formal academic language. Cite sources where appropriate. Avoid contractions. Be precise and objective. Use scholarly terminology. Maintain an authoritative but neutral tone. Reference studies, data, and established theories.",
+    student:
+      "Use clear, accessible language suitable for learners. Explain concepts thoroughly. Use relatable examples and analogies. Be encouraging and supportive. Avoid overly complex jargon. Make the content engaging and easy to follow.",
+    business:
+      "Use professional business language. Be concise and results-focused. Lead with key metrics and business impact. Use industry-standard terminology. Maintain a confident, authoritative tone. Focus on ROI, growth, and strategic value.",
+    corporate:
+      "Use polished, professional corporate language. Be formal and strategic. Focus on organizational goals and outcomes. Use executive-level terminology. Maintain brand-appropriate tone. Be concise and purposeful — every slide must justify its existence.",
+    startup:
+      "Be bold, energetic, and persuasive. Focus on vision, traction, and market opportunity. Use strong action verbs. Keep sentences short and punchy. Create excitement and urgency. Tell a compelling story. Be confident but not arrogant.",
+    research:
+      "Use precise, evidence-based language. Be objective and methodical. Include specific data points and statistics. Use technical terminology appropriately. Present findings without bias. Acknowledge limitations. Be thorough but clear.",
+    seminar:
+      "Be conversational and engaging. Use storytelling techniques. Ask rhetorical questions. Include real-world examples. Be warm and approachable. Encourage participation. Make complex topics accessible without dumbing them down.",
+    marketing:
+      "Be persuasive, energetic, and benefit-focused. Use storytelling to create emotional connection. Create urgency with power words. Focus on customer outcomes, not product features. Use social proof. Be bold and memorable. Include clear calls to action.",
+    technical:
+      "Be precise, clear, and technically accurate. Use appropriate technical terminology — don't oversimplify for a technical audience. Include specific data, specs, and implementation details. Use diagrams and flowcharts to explain complex systems. Be thorough but well-organized.",
+    creative:
+      "Be inspirational, expressive, and evocative. Use descriptive, vivid language. Let the visuals carry the narrative. Be passionate about the creative work. Focus on the creative process and artistic vision. Use an artistic, sophisticated tone.",
+    general:
+      "Be clear, accessible, and engaging for a broad audience. Avoid jargon and technical terms. Use simple, direct language. Balance information with engagement. Make every slide self-contained. Use a friendly, approachable tone.",
+    training:
+      "Be instructional, clear, and encouraging. Use step-by-step language. Include practical examples. Be supportive and patient. Focus on skill-building. Use action-oriented language. Include checkpoints and summaries. Make learners feel confident.",
+    workshop:
+      "Be interactive, participatory, and collaborative. Use questions and prompts. Be warm and facilitative. Encourage discussion and hands-on activities. Use inclusive language ('we', 'let's'). Be flexible and responsive. Focus on shared learning.",
+    sales:
+      "Be persuasive, confident, and benefit-focused. Lead with the customer's pain point. Use social proof and urgency. Be concise and punchy. Focus on value and ROI. Address objections proactively. End with a clear, compelling call to action.",
+    proposal:
+      "Be formal, thorough, and credible. Present a logical, well-structured argument. Use data and evidence. Be specific about deliverables and outcomes. Maintain a professional, trustworthy tone. Show expertise and capability. Be clear about the ask.",
+    report:
+      "Be formal, precise, and data-driven. Present findings objectively. Use specific numbers and metrics. Be neutral and professional. Highlight key insights and trends. Use clear, structured language. End with actionable recommendations.",
+    "product-demo":
+      "Be conversational, enthusiastic, and demo-focused. Show the product in action. Focus on user benefits and real use cases. Be credible — don't overpromise. Use screenshots and visuals to demonstrate. Be clear about next steps and how to get started.",
+  };
+
+  return instructions[category] || instructions.general;
 }
 
 export async function analyzeInput(
@@ -111,6 +466,7 @@ Return ONLY a JSON object with these fields:
   "audience": "students|professionals|executives|general|technical|investors|customers",
   "tone": "formal|casual|academic|persuasive|inspirational|technical|conversational",
   "purpose": "inform|persuade|educate|pitch|report|inspire",
+  "presentationCategory": "academic|student|business|corporate|startup|research|seminar|marketing|technical|creative|general|training|workshop|sales|proposal|report|product-demo",
   "suggestedSlideCount": number (5-25),
   "suggestedTitle": "A compelling, specific presentation title (not generic)",
   "suggestedSubtitle": "A short descriptive subtitle",
@@ -127,6 +483,25 @@ ANALYSIS RULES:
   * "report" → if presenting data, results, quarterly/annual review
   * "inspire" → if motivational, vision-setting, keynote-style
   * "inform" → default for general knowledge sharing
+
+- Detect the PRESENTATION CATEGORY (presentationCategory field):
+  * "academic" → university lectures, thesis defenses, academic conferences
+  * "student" → student presentations, class projects, study groups
+  * "business" → business reviews, strategy presentations, market analysis
+  * "corporate" → board meetings, executive briefings, company-wide updates
+  * "startup" → pitch decks, investor presentations, demo days
+  * "research" → research findings, lab reports, scientific presentations
+  * "seminar" → educational seminars, public lectures, knowledge sharing
+  * "marketing" → marketing campaigns, brand presentations, product launches
+  * "technical" → technical deep-dives, architecture reviews, engineering talks
+  * "creative" → portfolio showcases, design presentations, creative pitches
+  * "training" → employee training, onboarding, skill development
+  * "workshop" → interactive workshops, hands-on sessions, group learning
+  * "sales" → sales pitches, product demonstrations, client proposals
+  * "proposal" → project proposals, grant applications, formal proposals
+  * "report" → quarterly reports, annual reviews, status reports
+  * "product-demo" → product demonstrations, feature walkthroughs, UX showcases
+  * "general" → catch-all for anything that doesn't fit the above
 
 - Auto-select the best TEMPLATE:
   * pitch → "startup"
@@ -159,11 +534,15 @@ Analyze this input deeply and suggest the optimal presentation strategy. Think a
   const raw = await callAI(systemPrompt, userPrompt);
   const result = parseJSON(raw);
 
+  // Determine presentation category — use AI-detected value or fall back to mapping
+  const presentationCategory: TopicCategory = result.presentationCategory || result.category || "general";
+
   return {
     category: result.category || "general",
     audience: result.audience || "general",
     tone: result.tone || "conversational",
     purpose: result.purpose || "inform",
+    presentationCategory,
     suggestedSlideCount: Math.min(
       Math.max(result.suggestedSlideCount || 8, 5),
       25
@@ -185,6 +564,33 @@ export function autoSelectTemplate(
   audience: AudienceType,
   purpose?: string
 ): TemplateId {
+  // Phase 3: Use presentation category for more precise template selection
+  const categoryTemplateMap: Record<string, TemplateId> = {
+    academic: "academic",
+    student: "education",
+    business: "corporate",
+    corporate: "corporate",
+    startup: "startup",
+    research: "research",
+    seminar: "seminar",
+    marketing: "marketing",
+    technical: "dark",
+    creative: "portfolio",
+    general: "minimal",
+    training: "education",
+    workshop: "seminar",
+    sales: "marketing",
+    proposal: "corporate",
+    report: "research",
+    "product-demo": "dark",
+  };
+
+  // If we have a specific presentation category, use it directly
+  if (categoryTemplateMap[category]) {
+    return categoryTemplateMap[category];
+  }
+
+  // Fallback to purpose-based selection
   if (purpose === "pitch") return "startup";
   if (purpose === "inspire") return "dark";
 
@@ -663,14 +1069,44 @@ function hashString(str: string): number {
 }
 
 // ============================================================
-// Generate Outline (with visual intelligence)
+// Generate Outline (with visual intelligence + category design)
 // ============================================================
 
 export async function generateOutline(
   inputText: string,
   analysis: ExtendedAnalysis
 ): Promise<SlidePlan[]> {
+  // Phase 3: Get category-specific design profile for structure rules
+  const designProfile = getCategoryDesignProfile(analysis.presentationCategory);
+  const toneInstructions = getCategoryToneInstructions(analysis.presentationCategory);
+
   const systemPrompt = `You are a presentation architect. Create a detailed slide-by-slide plan for a ${analysis.suggestedSlideCount}-slide presentation.
+
+═══════════════════════════════════════
+CATEGORY: ${analysis.presentationCategory.toUpperCase()}
+═══════════════════════════════════════
+
+DESIGN PROFILE:
+- Visual Strategy: ${designProfile.visualStrategy}
+- Max Words Per Bullet: ${designProfile.maxWordsPerBullet}
+- Max Bullets Per Slide: ${designProfile.maxBulletsPerSlide}
+- Heading Style: ${designProfile.headingStyle}
+- Image Frequency: ${designProfile.imageFrequency}
+- Chart Frequency: ${designProfile.chartFrequency}
+- Diagram Frequency: ${designProfile.diagramFrequency}
+
+CONTENT GUIDELINES:
+${designProfile.contentGuidelines}
+
+TONE INSTRUCTIONS:
+${toneInstructions}
+
+SLIDE STRUCTURE RULES:
+${designProfile.slideStructureRules}
+
+═══════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════
 
 Return ONLY a JSON array of slide plan objects:
 [
@@ -701,27 +1137,30 @@ SLIDE PLAN RULES:
 - Slide ${analysis.suggestedSlideCount - 2}: type "summary" — Key Takeaways
 - Slide ${analysis.suggestedSlideCount - 1}: type "closing" — Thank You / Next Steps
 
-VARY THE SLIDE TYPES across content slides:
+VARY THE SLIDE TYPES across content slides based on the category's visual strategy:
 - Use "content" for standard text slides (most common)
 - Use "two-column" for comparisons or pros/cons
-- Use "statistic" for data-heavy slides (2-4 key metrics)
+- Use "statistic" for data-heavy slides (2-4 key metrics) — ${designProfile.chartFrequency === "frequent" ? "USE FREQUENTLY" : designProfile.chartFrequency === "selective" ? "use selectively" : "avoid unless necessary"}
 - Use "quote" for impactful quotes (1 per presentation)
 - Use "timeline" for chronological content
-- Use "process" for step-by-step flows
+- Use "process" for step-by-step flows — ${designProfile.diagramFrequency === "frequent" ? "USE FREQUENTLY" : designProfile.diagramFrequency === "selective" ? "use selectively" : "avoid unless necessary"}
 - Use "comparison" for side-by-side analysis
 - Use "divider" between major sections (every 4-5 slides)
-- Use "chart" for data visualization
+- Use "chart" for data visualization — ${designProfile.chartFrequency === "frequent" ? "USE FREQUENTLY" : designProfile.chartFrequency === "selective" ? "use selectively" : "avoid unless necessary"}
 
 Each slide must have:
-- "heading": a SPECIFIC, ENGAGING title (not generic)
-- "keyPoints": 2-4 key points for this slide
+- "heading": a SPECIFIC, ENGAGING title in ${designProfile.headingStyle} style (not generic)
+- "keyPoints": 2-${designProfile.maxBulletsPerSlide} key points for this slide (max ${designProfile.maxWordsPerBullet} words each)
 - "notes": 1 sentence describing what the presenter should say
+
+CRITICAL: Follow the category's content guidelines and slide structure rules above. The presentation should feel like a ${analysis.presentationCategory} presentation, not a generic one.
 
 Return ONLY raw JSON array.`;
 
   const userPrompt = `Presentation: "${analysis.suggestedTitle}"
 Subtitle: "${analysis.suggestedSubtitle}"
 Category: ${analysis.category}
+Presentation Category: ${analysis.presentationCategory}
 Audience: ${analysis.audience}
 Tone: ${analysis.tone}
 Purpose: ${analysis.purpose}
@@ -732,7 +1171,7 @@ ${analysis.outline.map((item, i) => `${i + 1}. ${item}`).join("\n")}
 
 Original input (for reference): "${inputText.substring(0, 2000)}"
 
-Create a detailed slide-by-slide plan. Each slide should have a clear purpose and focus on ONE main idea.`;
+Create a detailed slide-by-slide plan. Each slide should have a clear purpose and focus on ONE main idea. Follow the ${analysis.presentationCategory} design profile strictly.`;
 
   try {
     const raw = await callAI(systemPrompt, userPrompt);
@@ -910,7 +1349,7 @@ const templateDescriptions: Record<TemplateId, string> = {
   portfolio: "creative pink/coral palette, elegant serif headings, artistic",
 };
 
-const toneInstructions: Record<string, string> = {
+const toneInstructionsMap: Record<string, string> = {
   formal: "Use professional, precise language. Avoid contractions and slang. Maintain authoritative tone.",
   casual: "Use conversational, friendly language. Contractions are fine. Be relatable.",
   academic: "Use scholarly language with precise terminology. Include references where appropriate. Objective tone.",
@@ -925,6 +1364,7 @@ const toneInstructions: Record<string, string> = {
  * This is the core of per-slide generation — each slide gets its own AI call
  * with full awareness of the presentation flow.
  * Phase 2: Includes visual context when the slide needs an image.
+ * Phase 3: Includes category-specific design rules and tone instructions.
  */
 async function generateSingleSlide(
   plan: SlidePlan,
@@ -935,6 +1375,10 @@ async function generateSingleSlide(
   nextPlan: SlidePlan | null
 ): Promise<Slide> {
   const effectiveTemplate = analysis.suggestedTemplate || templateId;
+
+  // Phase 3: Get category-specific design profile and tone instructions
+  const designProfile = getCategoryDesignProfile(analysis.presentationCategory);
+  const categoryTone = getCategoryToneInstructions(analysis.presentationCategory);
 
   // Build context from previous slides
   const prevContext = previousSlides
@@ -994,18 +1438,31 @@ ${getSlideTypeInstructions(plan.type)}
 ${visualContext}
 
 ═══════════════════════════════════════
+CATEGORY: ${analysis.presentationCategory.toUpperCase()}
+═══════════════════════════════════════
+
+CONTENT GUIDELINES:
+${designProfile.contentGuidelines}
+
+TONE INSTRUCTIONS:
+${categoryTone}
+
+VISUAL STRATEGY: ${designProfile.visualStrategy}
+HEADING STYLE: ${designProfile.headingStyle}
+
+═══════════════════════════════════════
 QUALITY RULES — FOLLOW EXACTLY
 ═══════════════════════════════════════
 
-1. Heading must be SPECIFIC and ENGAGING — never generic like "Overview" or "Introduction"
-2. Content must be CONCISE — max 10 words per bullet, max 5 bullets
+1. Heading must be SPECIFIC and ENGAGING in ${designProfile.headingStyle} style — never generic like "Overview" or "Introduction"
+2. Content must be CONCISE — max ${designProfile.maxWordsPerBullet} words per bullet, max ${designProfile.maxBulletsPerSlide} bullets
 3. Use human-like language — vary sentence length, use active voice
 4. NO repetition with previous slides — check the context below
 5. Every word must earn its place — cut anything that doesn't add value
 6. Speaker notes must be CONVERSATIONAL — 1-2 sentences, natural speaking tone
 7. Include a transition phrase in notes when appropriate ("Now let's look at...", "Building on that...")
 
-TONE: ${toneInstructions[analysis.tone] || toneInstructions.conversational}
+TONE: ${toneInstructionsMap[analysis.tone] || toneInstructionsMap.conversational}
 AUDIENCE: ${analysis.audience} — adjust complexity and jargon accordingly
 PURPOSE: ${analysis.purpose} — this slide must serve this goal
 DESIGN STYLE: ${templateDescriptions[effectiveTemplate] || templateDescriptions.corporate}
@@ -1026,6 +1483,7 @@ ${plan.visualCaption ? `- Visual caption: "${plan.visualCaption}"` : ""}
 PRESENTATION CONTEXT:
 Title: "${analysis.suggestedTitle}"
 Category: ${analysis.category}
+Presentation Category: ${analysis.presentationCategory}
 Keywords: ${analysis.keywords.join(", ")}
 
 PREVIOUS SLIDES (for context — DO NOT repeat their content):
@@ -1036,7 +1494,7 @@ ${nextContext}
 
 ORIGINAL INPUT (for reference): "${inputText.substring(0, 1500)}"
 
-Generate this ONE slide. Make it focused, impactful, and presentation-ready.`;
+Generate this ONE slide. Make it focused, impactful, and presentation-ready. Follow the ${analysis.presentationCategory} design profile — this should feel like a ${analysis.presentationCategory} presentation.`;
 
   try {
     const raw = await callAI(systemPrompt, userPrompt);
@@ -1371,6 +1829,11 @@ Improve quality while keeping the same structure. Make every word count. Ensure 
 export function finalQualityCheck(slides: Slide[], analysis: ExtendedAnalysis): Slide[] {
   if (slides.length === 0) return slides;
 
+  // Phase 3: Get category-specific limits
+  const designProfile = getCategoryDesignProfile(analysis.presentationCategory);
+  const maxBullets = designProfile.maxBulletsPerSlide;
+  const maxWords = designProfile.maxWordsPerBullet;
+
   // 1. Ensure first slide is title
   if (slides[0].type !== "title") {
     slides[0].type = "title";
@@ -1387,14 +1850,14 @@ export function finalQualityCheck(slides: Slide[], analysis: ExtendedAnalysis): 
     }
   }
 
-  // 3. Limit and clean bullets
+  // 3. Limit and clean bullets using category-specific limits
   for (const slide of slides) {
     if (slide.bullets) {
-      // Max 5 bullets
-      if (slide.bullets.length > 5) {
-        slide.bullets = slide.bullets.slice(0, 5);
+      // Max bullets per category profile
+      if (slide.bullets.length > maxBullets) {
+        slide.bullets = slide.bullets.slice(0, maxBullets);
       }
-      // Max 10 words per bullet, clean up
+      // Max words per bullet per category profile, clean up
       slide.bullets = slide.bullets.map((b) => {
         let cleaned = b.trim();
         // Remove trailing periods from bullets
@@ -1403,8 +1866,8 @@ export function finalQualityCheck(slides: Slide[], analysis: ExtendedAnalysis): 
         }
         // Enforce word limit
         const words = cleaned.split(/\s+/);
-        if (words.length > 10) {
-          cleaned = words.slice(0, 10).join(" ") + "…";
+        if (words.length > maxWords) {
+          cleaned = words.slice(0, maxWords).join(" ") + "…";
         }
         return cleaned;
       });
@@ -1413,11 +1876,11 @@ export function finalQualityCheck(slides: Slide[], analysis: ExtendedAnalysis): 
     }
 
     // Limit column content
-    if (slide.leftCol && slide.leftCol.length > 5) {
-      slide.leftCol = slide.leftCol.slice(0, 5);
+    if (slide.leftCol && slide.leftCol.length > maxBullets) {
+      slide.leftCol = slide.leftCol.slice(0, maxBullets);
     }
-    if (slide.rightCol && slide.rightCol.length > 5) {
-      slide.rightCol = slide.rightCol.slice(0, 5);
+    if (slide.rightCol && slide.rightCol.length > maxBullets) {
+      slide.rightCol = slide.rightCol.slice(0, maxBullets);
     }
   }
 

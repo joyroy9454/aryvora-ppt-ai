@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
         audience: "general" as const,
         tone: "conversational" as const,
         purpose: "inform" as const,
+        presentationCategory: "general" as const,
         suggestedSlideCount: requestedCount || 8,
         suggestedTitle: inputText.split(" ").slice(0, 6).join(" "),
         suggestedSubtitle: "",
