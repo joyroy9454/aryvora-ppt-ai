@@ -5,6 +5,8 @@ import {
   generateSlides,
   generateSpeakerNotes,
   rewriteSlidesStyle,
+  buildImagePrompt,
+  shouldGenerateImage,
 } from "@/lib/ai-engine";
 
 export async function POST(request: NextRequest) {
@@ -16,12 +18,14 @@ export async function POST(request: NextRequest) {
       templateId,
       slideCount: requestedCount,
       style,
+      generateImages,
     } = body as {
       inputText: string;
       inputMode: InputMode;
       templateId: TemplateId;
       slideCount?: number;
       style?: "academic" | "business" | "casual";
+      generateImages?: boolean;
     };
 
     if (
@@ -93,7 +97,16 @@ export async function POST(request: NextRequest) {
       // Notes are optional, continue without them
     }
 
-    // Step 4: Apply style rewrite if requested
+    // Step 4: Auto-generate images for slides that need them
+    if (generateImages) {
+      try {
+        slides = await autoGenerateImages(slides, analysis, templateId);
+      } catch {
+        // Image generation is optional, continue without images
+      }
+    }
+
+    // Step 5: Apply style rewrite if requested
     if (style && style !== "business") {
       try {
         slides = await rewriteSlidesStyle(slides, style);
@@ -118,6 +131,104 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// ---------- Auto-generate images for slides ----------
+async function autoGenerateImages(
+  slides: Slide[],
+  analysis: { keywords: string[]; suggestedTitle: string },
+  templateId: TemplateId
+): Promise<Slide[]> {
+  const imageModel =
+    process.env.OPENROUTER_IMAGE_MODEL || "stabilityai/stable-diffusion-3";
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return slides;
+
+  // Find slides that need images
+  const imageSlides = slides.filter(
+    (s) => shouldGenerateImage(s.type) && !s.imageUrl
+  );
+
+  // Limit to 3 images per presentation to avoid rate limits
+  const toGenerate = imageSlides.slice(0, 3);
+
+  for (const slide of toGenerate) {
+    try {
+      const prompt = buildImagePrompt(
+        slide.heading,
+        slide.type,
+        analysis.keywords,
+        templateId
+      );
+
+      const response = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+            "HTTP-Referer": "https://aryvora.com",
+            "X-Title": "Aryvora PPT AI",
+          },
+          body: JSON.stringify({
+            model: imageModel,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: `Generate an image: ${prompt}`,
+                  },
+                ],
+              },
+            ],
+            modalities: ["image", "text"],
+          }),
+        }
+      );
+
+      if (!response.ok) continue;
+
+      const data = await response.json();
+      let imageUrl: string | null = null;
+
+      // Try multiple response formats
+      if (data.images?.[0]?.url) {
+        imageUrl = data.images[0].url;
+      } else if (data.choices?.[0]?.message?.content_blocks) {
+        for (const block of data.choices[0].message.content_blocks) {
+          if (block.image_url?.url) {
+            imageUrl = block.image_url.url;
+            break;
+          }
+        }
+      } else if (typeof data.choices?.[0]?.message?.content === "string") {
+        const content = data.choices[0].message.content;
+        if (
+          content.startsWith("http") &&
+          (content.includes(".png") ||
+            content.includes(".jpg") ||
+            content.includes(".webp"))
+        ) {
+          imageUrl = content.trim();
+        }
+        const mdMatch = content.match(
+          /!\[.*?\]\((https?:\/\/[^)]+\.(?:png|jpg|webp|gif))\)/i
+        );
+        if (mdMatch) imageUrl = mdMatch[1];
+      }
+
+      if (imageUrl) {
+        slide.imageUrl = imageUrl;
+      }
+    } catch {
+      // Skip failed image generation for this slide
+    }
+  }
+
+  return slides;
 }
 
 function generateFallbackSlides(analysis: {
