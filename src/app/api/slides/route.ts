@@ -38,20 +38,25 @@ export async function POST(request: NextRequest) {
     const systemPrompt = `You are a presentation design expert. Generate slide content for a PowerPoint presentation.
 
 Return ONLY a JSON array of slide objects. Each slide object must have:
-- "type": one of "title", "content", "two-column", "closing"
+- "type": one of "title", "content", "two-column", "closing", "quote", "comparison", "timeline", "statistic"
 - "heading": string (the slide title)
 - "sub": string (subtitle, optional)
 - "bullets": array of strings (for content slides, 3-6 bullets)
-- "leftCol": array of strings (for two-column slides, 3-4 items each)
-- "rightCol": array of strings (for two-column slides, 3-4 items each)
+- "leftCol": array of strings (for two-column/comparison slides, 3-4 items each)
+- "rightCol": array of strings (for two-column/comparison slides, 3-4 items each)
+- "quote": string (for quote slides)
+- "author": string (for quote slides, optional)
+- "stats": array of objects with "value" and "label" (for statistic slides)
+- "timeline": array of objects with "label" and "description" (for timeline slides)
 
 Rules:
 - First slide MUST be type "title"
 - Last slide MUST be type "closing"
-- Middle slides should alternate between "content" and "two-column" where appropriate
+- Use diverse slide types: mix content, two-column, quote, comparison, timeline, statistic
 - Keep bullet points concise (max 15 words each)
 - Use the theme style: ${themeDescriptions[selectedTheme] || themeDescriptions.corporate}
 - For "closing" type slides, bullets can include Q&A, contact info, next steps
+- Include at least one quote, one statistic, and one comparison or timeline slide for variety
 
 IMPORTANT: Return ONLY the raw JSON array, no markdown, no explanation.`;
 

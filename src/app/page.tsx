@@ -1,106 +1,203 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import type { Slide } from "@/types";
-import SliderSlider from "@/components/SlideEditor";
+import { useState, useCallback, useRef } from "react";
+import type { Slide, SlideType } from "@/types";
+import SlideEditor from "@/components/SlideEditor";
 import LandingScreen from "@/components/LandingScreen";
 
 type AppStep = "landing" | "outline" | "slides" | "editor";
+
+const MAX_HISTORY = 30;
 
 export default function Home() {
   const [step, setStep] = useState<AppStep>("landing");
   const [topic, setTopic] = useState("");
   const [slideCount, setSlideCount] = useState(8);
   const [theme, setTheme] = useState<string>("corporate");
-  const [outlineData, setOutlineData] = useState<{ title: string; subtitle: string; outline: string[] } | null>(null);
+  const [outlineData, setOutlineData] = useState<{
+    title: string;
+    subtitle: string;
+    outline: string[];
+  } | null>(null);
   const [slides, setSlides] = useState<Slide[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleGenerateOutline = useCallback(async (t: string, count: number) => {
-    setLoading(true);
-    setError(null);
-    setTopic(t);
-    setSlideCount(count);
-    try {
-      const res = await fetch("/api/outline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: t, slideCount: count }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate outline");
+  // Undo/Redo history
+  const historyRef = useRef<Slide[][]>([[]]);
+  const historyIndexRef = useRef(0);
 
-      setOutlineData(data);
-      setStep("outline");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setLoading(false);
+  const pushHistory = useCallback((newSlides: Slide[]) => {
+    const h = historyRef.current;
+    const idx = historyIndexRef.current;
+    // Trim future states if we're not at the end
+    h.splice(idx + 1);
+    h.push(newSlides);
+    if (h.length > MAX_HISTORY) h.shift();
+    historyIndexRef.current = h.length - 1;
+  }, []);
+
+  const undo = useCallback(() => {
+    const idx = historyIndexRef.current;
+    if (idx > 0) {
+      historyIndexRef.current = idx - 1;
+      setSlides(historyRef.current[idx - 1]);
     }
   }, []);
 
-  const handleGenerateSlides = useCallback(async (themeName: string) => {
-    setTheme(themeName);
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch("/api/slides", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic,
-          slideCount,
-          outline: outlineData?.outline || [],
-          theme: themeName,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate slides");
-
-      setSlides(data.slides || []);
-      setStep("editor");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setLoading(false);
+  const redo = useCallback(() => {
+    const h = historyRef.current;
+    const idx = historyIndexRef.current;
+    if (idx < h.length - 1) {
+      historyIndexRef.current = idx + 1;
+      setSlides(h[idx + 1]);
     }
-  }, [topic, slideCount, outlineData]);
-
-  const handleRegenerateSlide = useCallback(async (slideId: string) => {
-    const slide = slides.find((s) => s.id === slideId);
-    if (!slide) return;
-
-    setSlides((prev) =>
-      prev.map((s) => (s.id === slideId ? { ...s, heading: s.heading + " …" } : s))
-    );
-
-    try {
-      const res = await fetch("/api/regenerate-slide", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slide }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to regenerate");
-
-      setSlides((prev) =>
-        prev.map((s) => (s.id === slideId ? data.slide : s))
-      );
-    } catch (err) {
-      setSlides((prev) =>
-        prev.map((s) => (s.id === slideId ? slide : s))
-      );
-      setError(err instanceof Error ? err.message : "Failed to regenerate slide");
-    }
-  }, [slides]);
-
-  const handleUpdateSlide = useCallback((slideId: string, updated: Partial<Slide>) => {
-    setSlides((prev) =>
-      prev.map((s) => (s.id === slideId ? { ...s, ...updated } : s))
-    );
   }, []);
+
+  const handleGenerateOutline = useCallback(
+    async (t: string, count: number) => {
+      setLoading(true);
+      setError(null);
+      setTopic(t);
+      setSlideCount(count);
+      try {
+        const res = await fetch("/api/outline", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic: t, slideCount: count }),
+        });
+        const data = await res.json();
+        if (!res.ok)
+          throw new Error(data.error || "Failed to generate outline");
+
+        setOutlineData(data);
+        setStep("outline");
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Something went wrong"
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  const handleGenerateSlides = useCallback(
+    async (themeName: string) => {
+      setTheme(themeName);
+      setLoading(true);
+      setError(null);
+
+      try {
+        const res = await fetch("/api/slides", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic,
+            slideCount,
+            outline: outlineData?.outline || [],
+            theme: themeName,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok)
+          throw new Error(data.error || "Failed to generate slides");
+
+        const newSlides = data.slides || [];
+        setSlides(newSlides);
+        historyRef.current = [newSlides];
+        historyIndexRef.current = 0;
+        setStep("editor");
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Something went wrong"
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [topic, slideCount, outlineData]
+  );
+
+  const handleRegenerateSlide = useCallback(
+    async (slideId: string) => {
+      const slide = slides.find((s) => s.id === slideId);
+      if (!slide) return;
+
+      setSlides((prev) =>
+        prev.map((s) =>
+          s.id === slideId ? { ...s, heading: s.heading + " …" } : s
+        )
+      );
+
+      try {
+        const res = await fetch("/api/regenerate-slide", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slide }),
+        });
+        const data = await res.json();
+        if (!res.ok)
+          throw new Error(data.error || "Failed to regenerate");
+
+        const newSlides = slides.map((s) =>
+          s.id === slideId ? data.slide : s
+        );
+        setSlides(newSlides);
+        pushHistory(newSlides);
+      } catch (err) {
+        setSlides((slides) => [...slides]); // restore
+        setError(
+          err instanceof Error ? err.message : "Failed to regenerate slide"
+        );
+      }
+    },
+    [slides, pushHistory]
+  );
+
+  const handleUpdateSlide = useCallback(
+    (slideId: string, updated: Partial<Slide>) => {
+      const newSlides = slides.map((s) =>
+        s.id === slideId ? { ...s, ...updated } : s
+      );
+      setSlides(newSlides);
+      pushHistory(newSlides);
+    },
+    [slides, pushHistory]
+  );
+
+  const handleReorderSlides = useCallback(
+    (newSlides: Slide[]) => {
+      setSlides(newSlides);
+      pushHistory(newSlides);
+    },
+    [pushHistory]
+  );
+
+  const handleAddSlide = useCallback(
+    (type: SlideType, afterId?: string) => {
+      const newSlide: Slide = createEmptySlide(type);
+      const idx = afterId
+        ? slides.findIndex((s) => s.id === afterId)
+        : slides.length - 1;
+      const newSlides = [...slides];
+      newSlides.splice(idx + 1, 0, newSlide);
+      setSlides(newSlides);
+      pushHistory(newSlides);
+    },
+    [slides, pushHistory]
+  );
+
+  const handleDeleteSlide = useCallback(
+    (slideId: string) => {
+      if (slides.length <= 1) return;
+      const newSlides = slides.filter((s) => s.id !== slideId);
+      setSlides(newSlides);
+      pushHistory(newSlides);
+    },
+    [slides, pushHistory]
+  );
 
   const handleExportPPTX = useCallback(async () => {
     try {
@@ -121,13 +218,18 @@ export default function Home() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = (outlineData?.title || topic).replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-") + ".pptx";
+      a.download =
+        (outlineData?.title || topic)
+          .replace(/[^a-zA-Z0-9\s-]/g, "")
+          .replace(/\s+/g, "-") + ".pptx";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to export PPTX");
+      setError(
+        err instanceof Error ? err.message : "Failed to export PPTX"
+      );
     }
   }, [slides, outlineData, topic, theme]);
 
@@ -157,7 +259,9 @@ export default function Home() {
         };
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to export PDF");
+      setError(
+        err instanceof Error ? err.message : "Failed to export PDF"
+      );
     }
   }, [slides, outlineData, topic, theme]);
 
@@ -167,6 +271,8 @@ export default function Home() {
     setSlides([]);
     setOutlineData(null);
     setError(null);
+    historyRef.current = [[]];
+    historyIndexRef.current = 0;
   }, []);
 
   return (
@@ -175,7 +281,12 @@ export default function Home() {
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-50 border border-red-200 text-red-700 px-5 py-3 rounded-xl shadow-lg max-w-md text-sm">
           <div className="flex items-center justify-between gap-4">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 font-bold">&times;</button>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-400 hover:text-red-600 font-bold"
+            >
+              &times;
+            </button>
           </div>
         </div>
       )}
@@ -204,7 +315,7 @@ export default function Home() {
       )}
 
       {step === "editor" && (
-        <SliderSlider
+        <SlideEditor
           slides={slides}
           title={outlineData?.title || topic}
           theme={theme}
@@ -213,10 +324,91 @@ export default function Home() {
           onExportPPTX={handleExportPPTX}
           onExportPDF={handleExportPDF}
           onStartOver={handleStartOver}
+          onReorderSlides={handleReorderSlides}
+          onAddSlide={handleAddSlide}
+          onDeleteSlide={handleDeleteSlide}
         />
       )}
     </main>
   );
+}
+
+/* ---------- Helper: create empty slide ---------- */
+
+function createEmptySlide(type: SlideType): Slide {
+  const id = `slide-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const base = { id, type, heading: "New Slide" };
+
+  switch (type) {
+    case "title":
+      return { ...base, heading: "Title Slide", sub: "Subtitle" };
+    case "content":
+      return {
+        ...base,
+        heading: "Content Slide",
+        bullets: ["Point 1", "Point 2", "Point 3"],
+      };
+    case "two-column":
+      return {
+        ...base,
+        heading: "Two Columns",
+        leftCol: ["Left 1", "Left 2"],
+        rightCol: ["Right 1", "Right 2"],
+      };
+    case "image-left":
+      return {
+        ...base,
+        heading: "Image Left",
+        bullets: ["Point 1", "Point 2"],
+      };
+    case "image-right":
+      return {
+        ...base,
+        heading: "Image Right",
+        bullets: ["Point 1", "Point 2"],
+      };
+    case "quote":
+      return {
+        ...base,
+        heading: "Quote",
+        quote: "Enter your quote here...",
+        author: "Author Name",
+      };
+    case "comparison":
+      return {
+        ...base,
+        heading: "Comparison",
+        leftCol: ["Option A - Pro", "Option A - Con"],
+        rightCol: ["Option B - Pro", "Option B - Con"],
+      };
+    case "timeline":
+      return {
+        ...base,
+        heading: "Timeline",
+        timeline: [
+          { label: "Step 1", description: "Description" },
+          { label: "Step 2", description: "Description" },
+        ],
+      };
+    case "statistic":
+      return {
+        ...base,
+        heading: "Key Metrics",
+        stats: [
+          { value: "95%", label: "Satisfaction" },
+          { value: "2x", label: "Growth" },
+        ],
+      };
+    case "closing":
+      return {
+        ...base,
+        heading: "Thank You",
+        sub: "Questions?",
+        bullets: ["Contact us", "Learn more"],
+      };
+    default:
+      return base;
+  }
 }
 
 /* ---------- Sub-screens ---------- */
