@@ -599,7 +599,6 @@ export async function POST(request: NextRequest) {
                   w: gapX,
                   h: 0,
                   line: { color: t.accent, width: 1.5 },
-                  endArrowType: "arrow",
                 });
               }
             });
