@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: aryvora
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openrouter/owl-alpha
+      - key: NODE_ENV
+        value: production
+    healthCheckPath: /
+    autoDeploy: true
