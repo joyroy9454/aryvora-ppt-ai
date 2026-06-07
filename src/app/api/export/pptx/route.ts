@@ -96,10 +96,10 @@ function addHeading(
   s: PptxGenJS.Slide,
   text: string,
   t: (typeof THEMES)[TemplateId],
-  opts?: { fontSize?: number; y?: number; w?: number; align?: "left" | "center" }
+  opts?: { x?: number; fontSize?: number; y?: number; w?: number; align?: "left" | "center" }
 ) {
   s.addText(truncate(text, 80), {
-    x: 0.5,
+    x: opts?.x ?? 0.5,
     y: opts?.y ?? 0.3,
     w: opts?.w ?? 12.33,
     fontSize: opts?.fontSize ?? 32,
