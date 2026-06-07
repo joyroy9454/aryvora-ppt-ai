@@ -2332,3 +2332,93 @@ function getUnsplashUrl(keyword: string, width = 800, height = 600): string {
   const query = encodeURIComponent(keyword.toLowerCase().trim());
   return `https://source.unsplash.com/${width}x${height}/?${query}`;
 }
+
+// ============================================================
+// Fallback slide generation (used when AI pipeline fails)
+// ============================================================
+
+export function generateFallbackSlides(analysis: ExtendedAnalysis): Slide[] {
+  const total = analysis.suggestedSlideCount;
+  const slides: Slide[] = [];
+
+  slides.push({
+    id: `slide-${Date.now()}-0`,
+    type: "title",
+    heading: analysis.suggestedTitle,
+    sub: analysis.suggestedSubtitle,
+    icon: "📊",
+    notes: `Welcome the audience and introduce "${analysis.suggestedTitle}".`,
+  });
+
+  if (total > 3) {
+    slides.push({
+      id: `slide-${Date.now()}-1`,
+      type: "content",
+      heading: "Agenda",
+      bullets: analysis.outline.slice(0, 5).length > 0
+        ? analysis.outline.slice(0, 5)
+        : ["Introduction", "Key Topics", "Analysis", "Recommendations", "Next Steps"],
+      icon: "📋",
+      notes: "Walk the audience through what we'll cover today.",
+    });
+  }
+
+  const middleCount = Math.max(total - slides.length - 2, 1);
+  for (let i = 0; i < middleCount; i++) {
+    const sectionTitle = analysis.outline[i % analysis.outline.length] || `Key Point ${i + 1}`;
+    const slideType: "content" | "statistic" | "quote" =
+      i === 1 ? "statistic" : i === 3 ? "quote" : "content";
+
+    const slide: Slide = {
+      id: `slide-${Date.now()}-${slides.length}`,
+      type: slideType,
+      heading: sectionTitle,
+      notes: `Explain the key points about ${sectionTitle.toLowerCase()}.`,
+    };
+
+    if (slideType === "statistic") {
+      slide.stats = [
+        { label: "Key Metric", value: "85%" },
+        { label: "Growth", value: "+42%" },
+        { label: "Adoption", value: "1.2M" },
+      ];
+    } else if (slideType === "quote") {
+      slide.quote = "The best way to predict the future is to create it.";
+      slide.author = "Peter Drucker";
+    } else {
+      slide.bullets = [
+        `Critical insight about ${sectionTitle.toLowerCase()}`,
+        `Supporting evidence and data`,
+        `Actionable takeaway`,
+      ];
+    }
+
+    slides.push(slide);
+  }
+
+  if (total > 5) {
+    slides.push({
+      id: `slide-${Date.now()}-summary`,
+      type: "summary",
+      heading: "Key Takeaways",
+      bullets: (analysis.outline.length > 0
+        ? analysis.outline.slice(0, 4)
+        : ["Core insight", "Strategic recommendation", "Action items"]
+      ).map((item) => `Remember: ${item}`),
+      icon: "✅",
+      notes: "Summarize the key takeaways from the presentation.",
+    });
+  }
+
+  slides.push({
+    id: `slide-${Date.now()}-${total - 1}`,
+    type: "closing",
+    heading: "Thank You",
+    sub: analysis.suggestedTitle,
+    bullets: ["Questions?", "Let's discuss next steps"],
+    icon: "🙏",
+    notes: "Thank the audience and open the floor for questions.",
+  });
+
+  return slides;
+}

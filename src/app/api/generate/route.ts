@@ -1,18 +1,32 @@
+// ============================================================
+// Multi-Agent Generation Pipeline
+//
+// Pipeline steps:
+//   1. Planner   — analyze input, detect category/audience/purpose
+//   2. Research  — research topic (if needed for factual support)
+//   3. Outline   — create detailed slide-by-slide plan
+//   4. Writer    — generate each slide with AI
+//   5. Reviewer  — polish and quality-check the full deck
+//
+// Each step reports progress to the client.
+// ============================================================
+
 import { NextRequest, NextResponse } from "next/server";
 import type { Slide, TemplateId, InputMode } from "@/types";
 import {
-  analyzeInput,
-  generateSlidesOneByOne,
-  generateSpeakerNotes,
-  rewriteSlidesStyle,
-  enhanceContent,
-  generateOutline,
   summarizeInput,
   autoSelectTemplate,
-  finalQualityCheck,
   type ExtendedAnalysis,
-  type SlidePlan,
 } from "@/lib/ai-engine";
+import {
+  createPlannerAgent,
+  createResearchAgent,
+  createOutlineAgent,
+  createSlideWriterAgent,
+  createQualityReviewerAgent,
+  type PlannerResult,
+  type ResearchResult,
+} from "@/lib/agents";
 
 // ── Retry helper with exponential backoff ──
 async function retryWithBackoff<T>(
@@ -72,7 +86,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Step 1: Summarize long input (with retry) ──
+    // ── Step 0: Summarize long input ──
     let processedInput = inputText;
     try {
       processedInput = await retryWithBackoff(
@@ -84,103 +98,149 @@ export async function POST(request: NextRequest) {
       // Continue with original input
     }
 
-    // ── Step 2: Analyze input (with retry) ──
-    let analysis: ExtendedAnalysis;
+    // ── Initialize agents ──
+    const planner = createPlannerAgent();
+    const researcher = createResearchAgent();
+    const outliner = createOutlineAgent();
+    const writer = createSlideWriterAgent();
+    const reviewer = createQualityReviewerAgent();
+
+    // ═══════════════════════════════════════
+    // STEP 1 — Planner Agent
+    // ═══════════════════════════════════════
+    let planResult: PlannerResult;
     try {
-      analysis = await retryWithBackoff(
-        () => analyzeInput(processedInput, inputMode),
+      planResult = await retryWithBackoff(
+        () => planner.analyze(processedInput, inputMode),
         3,
         1000
       );
     } catch {
-      analysis = {
-        category: "general" as const,
-        audience: "general" as const,
-        tone: "conversational" as const,
-        purpose: "inform" as const,
-        presentationCategory: "general" as const,
+      // Fallback: create a basic plan
+      planResult = {
+        category: "general",
+        audience: "general",
+        purpose: "inform",
+        tone: "conversational",
+        complexity: "intermediate",
         suggestedSlideCount: requestedCount || 8,
         suggestedTitle: inputText.split(" ").slice(0, 6).join(" "),
         suggestedSubtitle: "",
         suggestedTemplate: templateId || "corporate",
         outline: [],
         keywords: [],
+        needsResearch: false,
       };
     }
 
     // Override slide count if user specified
     if (requestedCount) {
-      analysis.suggestedSlideCount = Math.min(Math.max(requestedCount, 3), 25);
+      planResult.suggestedSlideCount = Math.min(Math.max(requestedCount, 3), 25);
     }
 
     // Auto-select template
     const effectiveTemplate: TemplateId =
       templateId ||
-      analysis.suggestedTemplate ||
-      autoSelectTemplate(analysis.category, analysis.audience, analysis.purpose);
+      planResult.suggestedTemplate as TemplateId ||
+      autoSelectTemplate(planResult.category, planResult.audience, planResult.purpose);
 
-    // ── Step 3: Generate detailed slide plan (outline) (with retry) ──
-    let slidePlans: SlidePlan[] | undefined;
+    // Build ExtendedAnalysis from planner result
+    const analysis: ExtendedAnalysis = {
+      category: planResult.category,
+      audience: planResult.audience,
+      tone: planResult.tone,
+      purpose: planResult.purpose,
+      presentationCategory: planResult.category,
+      suggestedSlideCount: planResult.suggestedSlideCount,
+      suggestedTitle: planResult.suggestedTitle,
+      suggestedSubtitle: planResult.suggestedSubtitle,
+      suggestedTemplate: planResult.suggestedTemplate as TemplateId,
+      outline: planResult.outline,
+      keywords: planResult.keywords,
+    };
+
+    // ═══════════════════════════════════════
+    // STEP 2 — Research Agent (conditional)
+    // ═══════════════════════════════════════
+    let researchResult: ResearchResult | null = null;
+    if (planResult.needsResearch) {
+      try {
+        researchResult = await retryWithBackoff(
+          () =>
+            researcher.research(
+              planResult.suggestedTitle,
+              planResult.keywords,
+              planResult.category
+            ),
+          2,
+          1000
+        );
+      } catch {
+        // Research failed — continue without it
+        researchResult = null;
+      }
+    }
+
+    // ═══════════════════════════════════════
+    // STEP 3 — Outline Agent
+    // ═══════════════════════════════════════
+    let slidePlans;
     try {
       slidePlans = await retryWithBackoff(
-        () => generateOutline(processedInput, analysis),
+        () => outliner.createOutline(processedInput, analysis, researchResult),
         3,
         1000
       );
     } catch {
-      slidePlans = undefined;
+      // Fallback handled inside createOutlineAgent
+      slidePlans = await outliner.createOutline(processedInput, analysis, null);
     }
 
-    // ── Step 4: Generate slides ONE BY ONE (with retry) ──
+    // ═══════════════════════════════════════
+    // STEP 4 — Slide Writer Agent
+    // ═══════════════════════════════════════
     let slides: Slide[];
     try {
       slides = await retryWithBackoff(
         () =>
-          generateSlidesOneByOne(
-            processedInput,
+          writer.writeAllSlides(
+            slidePlans,
             analysis,
             effectiveTemplate,
-            inputMode,
-            undefined, // no progress callback on server
-            slidePlans
+            processedInput
           ),
         2,
         1500
       );
     } catch {
+      // Fallback: generate from plan
+      const { generateFallbackSlides } = await import("@/lib/ai-engine");
       slides = generateFallbackSlides(analysis);
     }
 
-    // ── Step 5: Enhance content quality (with retry) ──
+    // ═══════════════════════════════════════
+    // STEP 5 — Quality Reviewer Agent
+    // ═══════════════════════════════════════
+    // First: sync structural fixes (always runs)
+    slides = reviewer.finalQualityCheck(slides, analysis);
+
+    // Second: async AI polish (optional, non-blocking for response)
     if (enhance && slides.length > 0) {
       try {
         slides = await retryWithBackoff(
-          () => enhanceContent(slides, analysis),
+          () => reviewer.review(slides, analysis),
           2,
           1000
         );
       } catch {
-        // Enhancement failed — continue with unenhanced slides
+        // Enhancement failed — continue with structurally-fixed slides
       }
     }
 
-    // ── Step 6: Generate speaker notes (with retry) ──
-    try {
-      slides = await retryWithBackoff(
-        () => generateSpeakerNotes(slides),
-        2,
-        1000
-      );
-    } catch {
-      // Notes are optional
-    }
-
-    // ── Step 7: Final quality check ──
-    slides = finalQualityCheck(slides, analysis);
-
-    // ── Step 8: Apply style rewrite if requested ──
+    // ── Style rewrite if requested ──
     if (style && style !== "business") {
       try {
+        const { rewriteSlidesStyle } = await import("@/lib/ai-engine");
         slides = await rewriteSlidesStyle(slides, style);
       } catch {
         // Style rewrite is optional
@@ -202,6 +262,13 @@ export async function POST(request: NextRequest) {
         keywords: analysis.keywords,
       },
       templateUsed: effectiveTemplate,
+      // Include pipeline metadata for debugging/UI
+      pipeline: {
+        category: planResult.category,
+        complexity: planResult.complexity,
+        researchPerformed: researchResult !== null,
+        slideCount: slides.length,
+      },
     });
   } catch (err) {
     console.error("Generation API error:", err);
@@ -212,96 +279,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// ── Fallback slide generation ──
-
-function generateFallbackSlides(analysis: ExtendedAnalysis): Slide[] {
-  const total = analysis.suggestedSlideCount;
-  const slides: Slide[] = [];
-
-  // Title
-  slides.push({
-    id: `slide-${Date.now()}-0`,
-    type: "title",
-    heading: analysis.suggestedTitle,
-    sub: analysis.suggestedSubtitle,
-    icon: "📊",
-    notes: `Welcome the audience and introduce "${analysis.suggestedTitle}".`,
-  });
-
-  // Agenda
-  if (total > 3) {
-    slides.push({
-      id: `slide-${Date.now()}-1`,
-      type: "content",
-      heading: "Agenda",
-      bullets: analysis.outline.slice(0, 5).length > 0
-        ? analysis.outline.slice(0, 5)
-        : ["Introduction", "Key Topics", "Analysis", "Recommendations", "Next Steps"],
-      icon: "📋",
-      notes: "Walk the audience through what we'll cover today.",
-    });
-  }
-
-  const middleCount = Math.max(total - slides.length - 2, 1);
-  for (let i = 0; i < middleCount; i++) {
-    const sectionTitle = analysis.outline[i % analysis.outline.length] || `Key Point ${i + 1}`;
-    const slideType: "content" | "statistic" | "quote" =
-      i === 1 ? "statistic" : i === 3 ? "quote" : "content";
-
-    const slide: Slide = {
-      id: `slide-${Date.now()}-${slides.length}`,
-      type: slideType,
-      heading: sectionTitle,
-      notes: `Explain the key points about ${sectionTitle.toLowerCase()}.`,
-    };
-
-    if (slideType === "statistic") {
-      slide.stats = [
-        { label: "Key Metric", value: "85%" },
-        { label: "Growth", value: "+42%" },
-        { label: "Adoption", value: "1.2M" },
-      ];
-    } else if (slideType === "quote") {
-      slide.quote = "The best way to predict the future is to create it.";
-      slide.author = "Peter Drucker";
-    } else {
-      slide.bullets = [
-        `Critical insight about ${sectionTitle.toLowerCase()}`,
-        `Supporting evidence and data`,
-        `Actionable takeaway`,
-      ];
-    }
-
-    slides.push(slide);
-  }
-
-  // Summary
-  if (total > 5) {
-    slides.push({
-      id: `slide-${Date.now()}-summary`,
-      type: "summary",
-      heading: "Key Takeaways",
-      bullets: (analysis.outline.length > 0
-        ? analysis.outline.slice(0, 4)
-        : ["Core insight", "Strategic recommendation", "Action items"]
-      ).map((item) => `Remember: ${item}`),
-      icon: "✅",
-      notes: "Summarize the key takeaways from the presentation.",
-    });
-  }
-
-  // Closing
-  slides.push({
-    id: `slide-${Date.now()}-${total - 1}`,
-    type: "closing",
-    heading: "Thank You",
-    sub: analysis.suggestedTitle,
-    bullets: ["Questions?", "Let's discuss next steps"],
-    icon: "🙏",
-    notes: "Thank the audience and open the floor for questions.",
-  });
-
-  return slides;
 }
