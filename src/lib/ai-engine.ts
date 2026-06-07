@@ -403,6 +403,38 @@ export function getCategoryDesignProfile(category: TopicCategory): CategoryDesig
       slideStructureRules:
         "Open with the problem you solve. Show the product in action with visuals. Walk through key features with screenshots. Include a use case or customer story. Show integration/architecture with diagrams. End with pricing, next steps, and call to action.",
     },
+    event: {
+      category: "event",
+      tone: "conversational",
+      template: "marketing",
+      visualStrategy: "visual",
+      maxWordsPerBullet: 8,
+      maxBulletsPerSlide: 4,
+      headingStyle: "engaging",
+      imageFrequency: "frequent",
+      chartFrequency: "none",
+      diagramFrequency: "none",
+      contentGuidelines:
+        "Be energetic and engaging. Focus on what makes this event special. Keep bullets short and scannable. Highlight key speakers, agenda items, and takeaways. Use an inviting, enthusiastic tone. Make people want to attend.",
+      slideStructureRules:
+        "Open with event name and hook. Include date, venue, and key highlights. Show speaker lineup or agenda. Highlight what attendees will gain. End with registration call to action and contact info.",
+    },
+    motivational: {
+      category: "motivational",
+      tone: "inspirational",
+      template: "dark",
+      visualStrategy: "visual",
+      maxWordsPerBullet: 6,
+      maxBulletsPerSlide: 3,
+      headingStyle: "engaging",
+      imageFrequency: "frequent",
+      chartFrequency: "none",
+      diagramFrequency: "none",
+      contentGuidelines:
+        "Be inspirational and emotionally resonant. Use powerful, evocative language. Keep text minimal — let the message breathe. Use short, punchy statements. Tell stories. Paint a vision. Create emotional connection. Every word must carry weight.",
+      slideStructureRules:
+        "Open with a powerful hook or question. Build tension through the middle slides. Use quotes and stories for impact. Keep slides visually striking with minimal text. Build to a powerful climax. End with a clear call to action or memorable closing statement.",
+    },
   };
 
   return profiles[category] || profiles.general;
@@ -448,6 +480,10 @@ export function getCategoryToneInstructions(category: TopicCategory): string {
       "Be formal, precise, and data-driven. Present findings objectively. Use specific numbers and metrics. Be neutral and professional. Highlight key insights and trends. Use clear, structured language. End with actionable recommendations.",
     "product-demo":
       "Be conversational, enthusiastic, and demo-focused. Show the product in action. Focus on user benefits and real use cases. Be credible — don't overpromise. Use screenshots and visuals to demonstrate. Be clear about next steps and how to get started.",
+    event:
+      "Be energetic, engaging, and inviting. Focus on what makes this event special and worth attending. Highlight key speakers, agenda, and takeaways. Use an enthusiastic, welcoming tone. Make people want to attend. Keep it practical with clear logistics.",
+    motivational:
+      "Be inspirational, emotionally resonant, and powerful. Use evocative, vivid language. Tell stories that connect. Keep text minimal and impactful. Paint a vision of what's possible. Create emotional movement. End with a clear, inspiring call to action.",
   };
 
   return instructions[category] || instructions.general;
@@ -584,6 +620,8 @@ export function autoSelectTemplate(
     proposal: "corporate",
     report: "research",
     "product-demo": "dark",
+    event: "marketing",
+    motivational: "dark",
   };
 
   // If we have a specific presentation category, use it directly
@@ -1250,6 +1288,8 @@ const categoryLayoutPreferences: Record<string, {
   proposal: { preferred: ["content", "statistic", "chart", "comparison", "diagram"], avoid: ["quote"], maxConsecutiveSameType: 2, dataHeavy: true },
   report: { preferred: ["content", "statistic", "chart", "summary", "two-column"], avoid: ["quote", "qa"], maxConsecutiveSameType: 2, dataHeavy: true },
   "product-demo": { preferred: ["content", "image-left", "image-right", "case-study", "diagram"], avoid: ["statistic"], maxConsecutiveSameType: 2, dataHeavy: false },
+  event: { preferred: ["content", "image-left", "image-right", "timeline", "quote"], avoid: ["statistic", "chart", "diagram"], maxConsecutiveSameType: 2, dataHeavy: false },
+  motivational: { preferred: ["content", "quote", "image-left", "image-right"], avoid: ["statistic", "chart", "diagram", "process"], maxConsecutiveSameType: 2, dataHeavy: false },
 };
 
 /**

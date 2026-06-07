@@ -83,7 +83,9 @@ export type TopicCategory =
   | "sales"
   | "proposal"
   | "report"
-  | "product-demo";
+  | "product-demo"
+  | "event"
+  | "motivational";
 
 export type AudienceType =
   | "students"

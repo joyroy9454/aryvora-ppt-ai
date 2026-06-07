@@ -33,3 +33,7 @@ export type { QualityReviewerAgent } from "./reviewer";
 
 // Re-export shared types for convenience
 export type { SlidePlan } from "../ai-engine";
+
+// Visual Curator
+export { createVisualCuratorAgent } from "./visual-curator";
+export type { VisualCuratorAgent, VisualDecision } from "./visual-curator";
