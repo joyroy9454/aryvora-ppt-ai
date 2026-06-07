@@ -522,4 +522,67 @@ export const SLIDE_ICONS: Record<string, string[]> = {
   general: ["💡", "📌", "✅", "🔑", "⭐", "🎯", "📋", "💬"],
 };
 
+// ============================================================
+// Future-Ready Interfaces (for adapter layer)
+// These are referenced by src/lib/adapters/*.ts
+// No implementation yet — just type definitions for future use.
+// ============================================================
+
+/** User account — used when user_accounts feature flag is enabled */
+export interface User {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  plan: "free" | "pro" | "team" | "enterprise";
+  createdAt: string;
+}
+
+/** Saved presentation project — used when saved_projects feature flag is enabled */
+export interface Project {
+  id: string;
+  userId: string;
+  title: string;
+  slides: Slide[];
+  analysis: AIAnalysis | null;
+  templateId: TemplateId;
+  inputMode: InputMode;
+  inputText: string;
+  isPublic: boolean;
+  shareSlug: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Subscription plan — used when subscriptions feature flag is enabled */
+export interface Plan {
+  id: string;
+  name: string;
+  priceMonthly: number;
+  priceYearly: number;
+  limits: {
+    presentationsPerMonth: number;
+    slidesPerPresentation: number;
+    exportsPerMonth: number;
+    teamMembers: number;
+    storageMb: number;
+    aiModel: string;
+  };
+}
+
+/** Team workspace — used when team_workspace feature flag is enabled */
+export interface Team {
+  id: string;
+  name: string;
+  ownerId: string;
+  members: TeamMember[];
+  createdAt: string;
+}
+
+export interface TeamMember {
+  userId: string;
+  role: "owner" | "admin" | "member";
+  joinedAt: string;
+}
+
 
