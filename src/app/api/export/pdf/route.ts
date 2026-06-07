@@ -447,17 +447,17 @@ function renderSlideHtml(
     }
 
     case "chart": {
-      const chartData = s.chartData || s.stats || [];
-      const maxVal = Math.max(...chartData.map((d: { value: string }) => parseFloat(d.value) || 0), 1);
+      const chartItems = s.chart || s.stats || [];
+      const maxVal = Math.max(...chartItems.map((d) => Number(d.value) || 0), 1);
       content = `<h3>${esc(s.heading)}</h3>
         <div class="chart-grid">
-          ${chartData.slice(0, 6).map((d: { value: string; label: string }) => {
-            const val = parseFloat(d.value) || 0;
+          ${chartItems.slice(0, 6).map((d) => {
+            const val = Number(d.value) || 0;
             const pct = Math.max((val / maxVal) * 200, 20);
-            return `<div class="chart-bar-container"><div class="chart-bar" style="height:${pct}px;"></div><div class="chart-value">${esc(d.value)}</div><div class="chart-label">${esc(d.label)}</div></div>`;
+            return `<div class="chart-bar-container"><div class="chart-bar" style="height:${pct}px;"></div><div class="chart-value">${esc(String(d.value))}</div><div class="chart-label">${esc(d.label)}</div></div>`;
           }).join("")}
         </div>`;
-      if (chartData.length === 0) {
+      if (chartItems.length === 0) {
         content = `<h3>${esc(s.heading)}</h3><div style="display:flex;align-items:center;justify-content:center;flex:1;"><p style="font-size:18px;opacity:0.6;">No chart data available</p></div>`;
       }
       break;
@@ -516,7 +516,7 @@ function renderSlideHtml(
       content = `<h3>${esc(s.heading)}</h3>
         <div class="columns">
           <div class="column" style="display:flex;align-items:center;justify-content:center;">
-            ${s.image ? `<img src="${esc(s.image)}" style="max-width:100%;max-height:320px;border-radius:12px;object-fit:cover;" alt="" />` : `<div class="image-placeholder" style="width:100%;height:300px;">[Image]</div>`}
+            ${s.imageUrl ? `<img src="${esc(s.imageUrl)}" style="max-width:100%;max-height:320px;border-radius:12px;object-fit:cover;" alt="" />` : `<div class="image-placeholder" style="width:100%;height:300px;">[Image]</div>`}
           </div>
           <div class="column-divider"></div>
           <div class="column">
@@ -533,7 +533,7 @@ function renderSlideHtml(
           </div>
           <div class="column-divider"></div>
           <div class="column" style="display:flex;align-items:center;justify-content:center;">
-            ${s.image ? `<img src="${esc(s.image)}" style="max-width:100%;max-height:320px;border-radius:12px;object-fit:cover;" alt="" />` : `<div class="image-placeholder" style="width:100%;height:300px;">[Image]</div>`}
+            ${s.imageUrl ? `<img src="${esc(s.imageUrl)}" style="max-width:100%;max-height:320px;border-radius:12px;object-fit:cover;" alt="" />` : `<div class="image-placeholder" style="width:100%;height:300px;">[Image]</div>`}
           </div>
         </div>`;
       break;

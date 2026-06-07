@@ -493,15 +493,15 @@ export async function POST(request: NextRequest) {
         // ── Chart ──
         case "chart": {
           addHeading(s, slideData.heading, t);
-          const chartData = slideData.chartData || slideData.stats || [];
-          if (chartData.length > 0) {
-            const barWidth = 10 / chartData.length;
+          const chartItems = slideData.chart || slideData.stats || [];
+          if (chartItems.length > 0) {
+            const barWidth = 10 / chartItems.length;
             const maxVal = Math.max(
-              ...chartData.map((d) => parseFloat(d.value) || 0),
+              ...chartItems.map((d) => Number(d.value) || 0),
               1
             );
-            chartData.slice(0, 6).forEach((d, i) => {
-              const val = parseFloat(d.value) || 0;
+            chartItems.slice(0, 6).forEach((d, i) => {
+              const val = Number(d.value) || 0;
               const barH = (val / maxVal) * 3.5;
               const x = 1.0 + i * barWidth;
               // Bar
@@ -514,7 +514,7 @@ export async function POST(request: NextRequest) {
                 rectRadius: 0.05,
               });
               // Value label
-              s.addText(truncate(d.value, 10), {
+              s.addText(truncate(String(d.value), 10), {
                 x: x,
                 y: 5.5 - barH - 0.4,
                 w: barWidth - 0.3,
@@ -762,10 +762,10 @@ export async function POST(request: NextRequest) {
             w: 6.5,
           });
           // Image placeholder on right
-          if (slideData.image) {
+          if (slideData.imageUrl) {
             try {
               s.addImage({
-                path: slideData.image,
+                path: slideData.imageUrl,
                 x: 7.2,
                 y: 1.3,
                 w: 5.5,
@@ -803,10 +803,10 @@ export async function POST(request: NextRequest) {
             w: 5.5,
           });
           // Image placeholder on left
-          if (slideData.image) {
+          if (slideData.imageUrl) {
             try {
               s.addImage({
-                path: slideData.image,
+                path: slideData.imageUrl,
                 x: 0.5,
                 y: 1.3,
                 w: 5.5,
