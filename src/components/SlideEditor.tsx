@@ -19,6 +19,9 @@ interface SlideEditorProps {
   onAddSlide?: (type: SlideType, afterId?: string) => void;
   onDeleteSlide?: (id: string) => void;
   onDuplicateSlide?: (id: string) => void;
+  onRegenerateDeck?: () => void;
+  onChangeTemplate?: (templateId: string) => void;
+  onChangeTone?: (tone: "academic" | "business" | "casual") => void;
 }
 
 const THEME_COLORS: Record<
@@ -70,6 +73,9 @@ export default function SlideEditor({
   onAddSlide,
   onDeleteSlide,
   onDuplicateSlide,
+  onRegenerateDeck,
+  onChangeTemplate,
+  onChangeTone,
 }: SlideEditorProps) {
   const [selectedId, setSelectedId] = useState<string | null>(
     slides[0]?.id || null
@@ -79,6 +85,7 @@ export default function SlideEditor({
   const [showPreview, setShowPreview] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showDeckMenu, setShowDeckMenu] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const tc = THEME_COLORS[theme] || THEME_COLORS.corporate;
@@ -191,6 +198,84 @@ export default function SlideEditor({
               </svg>
               Present
             </button>
+
+            {/* ── Deck Actions ── */}
+            {onRegenerateDeck && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowDeckMenu(!showDeckMenu)}
+                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+                  title="Deck actions"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {showDeckMenu && (
+                  <div className="absolute right-0 top-full mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 p-2 w-56">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-1">Deck Actions</div>
+                    <button
+                      onClick={() => { onRegenerateDeck(); setShowDeckMenu(false); }}
+                      className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 text-sm"
+                    >
+                      <svg className="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <div>
+                        <div className="font-medium text-slate-700">Regenerate Deck</div>
+                        <div className="text-[10px] text-slate-400">AI rewrites all slides</div>
+                      </div>
+                    </button>
+                    {onChangeTemplate && (
+                      <>
+                        <div className="border-t border-slate-100 my-1"></div>
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-1">Change Template</div>
+                        {["corporate", "academic", "startup", "minimal", "dark", "seminar", "marketing", "research", "education", "portfolio"].map((tid) => (
+                          <button
+                            key={tid}
+                            onClick={() => { onChangeTemplate(tid); setShowDeckMenu(false); }}
+                            className={`w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-50 text-xs capitalize flex items-center gap-2 ${theme === tid ? "bg-brand-50 text-brand-700" : "text-slate-600"}`}
+                          >
+                            {tid === "corporate" && "🏢"}
+                            {tid === "academic" && "🎓"}
+                            {tid === "startup" && "🚀"}
+                            {tid === "minimal" && "◻️"}
+                            {tid === "dark" && "🌙"}
+                            {tid === "seminar" && "🎤"}
+                            {tid === "marketing" && "📣"}
+                            {tid === "research" && "🔬"}
+                            {tid === "education" && "📚"}
+                            {tid === "portfolio" && "🎨"}
+                            {tid}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {onChangeTone && (
+                      <>
+                        <div className="border-t border-slate-100 my-1"></div>
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-1">Change Tone</div>
+                        {(["academic", "business", "casual"] as const).map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => { onChangeTone(t); setShowDeckMenu(false); }}
+                            className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-50 text-xs capitalize text-slate-600 flex items-center gap-2"
+                          >
+                            {t === "academic" && "🎓 Formal & structured"}
+                            {t === "business" && "💼 Professional & polished"}
+                            {t === "casual" && "💬 Conversational & friendly"}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <button
               onClick={() => setShowNotes(!showNotes)}
               className={`px-3 py-2 text-sm border rounded-lg transition-colors flex items-center gap-1.5 ${
@@ -980,6 +1065,43 @@ export default function SlideEditor({
                         </div>
                       </div>
                     )}
+                    {/* Case Study */}
+                    {selectedSlide.type === "case-study" && (
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="text-xs font-medium text-slate-500 mb-1 block">Challenge</label>
+                          <ColumnEditor
+                            items={selectedSlide.leftCol || []}
+                            onChange={(leftCol) => onUpdateSlide(selectedSlide.id, { leftCol })}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-500 mb-1 block">Solution</label>
+                          <ColumnEditor
+                            items={selectedSlide.rightCol || []}
+                            onChange={(rightCol) => onUpdateSlide(selectedSlide.id, { rightCol })}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-500 mb-1 block">Results</label>
+                          <ColumnEditor
+                            items={selectedSlide.bullets || []}
+                            onChange={(bullets) => onUpdateSlide(selectedSlide.id, { bullets })}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Diagram */}
+                    {selectedSlide.type === "diagram" && (
+                      <div>
+                        <label className="text-xs font-medium text-slate-500 mb-1 block">Diagram Components</label>
+                        <ColumnEditor
+                          items={selectedSlide.bullets || []}
+                          onChange={(bullets) => onUpdateSlide(selectedSlide.id, { bullets })}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1599,6 +1721,51 @@ function SlidePreview({
               ))}
             </div>
           )}
+        </div>
+      );
+
+    case "case-study":
+      return (
+        <div className="h-full flex flex-col">
+          <h2 className={`text-lg md:text-xl font-bold ${tc.title} mb-4`}>
+            {slide.heading}
+          </h2>
+          <div className="grid grid-cols-3 gap-3 flex-1">
+            <div className={`${tc.cardBg} rounded-lg p-3`}>
+              <h4 className={`text-xs font-bold ${tc.accent} mb-2`}>Challenge</h4>
+              {slide.leftCol?.map((item, i) => (
+                <div key={i} className={`text-xs ${tc.body} py-0.5`}>{item}</div>
+              ))}
+            </div>
+            <div className={`${tc.cardBg} rounded-lg p-3`}>
+              <h4 className={`text-xs font-bold ${tc.accent} mb-2`}>Solution</h4>
+              {slide.rightCol?.map((item, i) => (
+                <div key={i} className={`text-xs ${tc.body} py-0.5`}>{item}</div>
+              ))}
+            </div>
+            <div className={`${tc.cardBg} rounded-lg p-3`}>
+              <h4 className={`text-xs font-bold ${tc.accent} mb-2`}>Results</h4>
+              {slide.bullets?.map((item, i) => (
+                <div key={i} className={`text-xs ${tc.body} py-0.5`}>{item}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+
+    case "diagram":
+      return (
+        <div className="h-full flex flex-col">
+          <h2 className={`text-lg md:text-xl font-bold ${tc.title} mb-4`}>
+            {slide.heading}
+          </h2>
+          <div className="flex-1 grid grid-cols-3 gap-3 items-center">
+            {(slide.bullets || []).slice(0, 9).map((item, i) => (
+              <div key={i} className={`${tc.cardBg} border-2 border-dashed ${tc.accent.replace("text-", "border-")} rounded-lg p-3 text-center`}>
+                <div className={`text-xs ${tc.body}`}>{item}</div>
+              </div>
+            ))}
+          </div>
         </div>
       );
 

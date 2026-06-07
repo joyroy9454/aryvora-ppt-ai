@@ -197,6 +197,101 @@ export default function Home() {
     [slides, pushHistory]
   );
 
+  // ── Regenerate entire deck ──
+  const handleRegenerateDeck = useCallback(async () => {
+    setExportProgress("Regenerating entire deck...");
+    try {
+      const res = await fetch("/api/editor/regenerate-deck", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slides,
+          title: analysis?.suggestedTitle || "Presentation",
+          templateId,
+          analysis: analysis || undefined,
+          inputText,
+          inputMode,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Regeneration failed");
+      }
+      const data = await res.json();
+      if (data.slides && data.slides.length > 0) {
+        setSlides(data.slides);
+        pushHistory(data.slides);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to regenerate deck");
+    } finally {
+      setExportProgress(null);
+    }
+  }, [slides, analysis, templateId, inputText, inputMode, pushHistory]);
+
+  // ── Change template ──
+  const handleChangeTemplate = useCallback(async (newTemplateId: string) => {
+    if (newTemplateId === templateId) return;
+    setExportProgress(`Changing template to ${newTemplateId}...`);
+    try {
+      const res = await fetch("/api/editor/change-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slides,
+          newTemplateId,
+          analysis: analysis || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Template change failed");
+      }
+      const data = await res.json();
+      if (data.slides && data.slides.length > 0) {
+        setSlides(data.slides);
+        pushHistory(data.slides);
+      }
+      setTemplateId(newTemplateId as TemplateId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to change template");
+    } finally {
+      setExportProgress(null);
+    }
+  }, [slides, templateId, analysis, pushHistory]);
+
+  // ── Change tone ──
+  const handleChangeTone = useCallback(async (tone: "academic" | "business" | "casual") => {
+    setExportProgress(`Changing tone to ${tone}...`);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inputText: slides.map((s) => `${s.heading}\n${(s.bullets || []).join("\n")}`).join("\n\n"),
+          inputMode: "notes" as const,
+          templateId,
+          slideCount: slides.length,
+          style: tone,
+          enhance: true,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Tone change failed");
+      }
+      const data = await res.json();
+      if (data.slides && data.slides.length > 0) {
+        setSlides(data.slides);
+        pushHistory(data.slides);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to change tone");
+    } finally {
+      setExportProgress(null);
+    }
+  }, [slides, templateId, pushHistory]);
+
   const handleExportPPTX = useCallback(async () => {
     setExportProgress("Preparing PowerPoint export...");
     try {
@@ -378,6 +473,9 @@ export default function Home() {
           onAddSlide={handleAddSlide}
           onDeleteSlide={handleDeleteSlide}
           onDuplicateSlide={handleDuplicateSlide}
+          onRegenerateDeck={handleRegenerateDeck}
+          onChangeTemplate={handleChangeTemplate}
+          onChangeTone={handleChangeTone}
         />
       )}
     </main>
