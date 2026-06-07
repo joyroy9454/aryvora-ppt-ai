@@ -15,6 +15,7 @@ import type {
   AudienceType,
   ToneType,
 } from "@/types";
+import { TEMPLATE_DESCRIPTIONS, TONE_INSTRUCTIONS } from "./constants";
 
 const MODEL = process.env.OPENROUTER_MODEL || "openrouter/owl-alpha";
 
@@ -1567,29 +1568,6 @@ function generateNotesForType(type: SlideType, heading: string, analysis: Extend
 // STEP 3 — Generate slides ONE BY ONE
 // ============================================================
 
-const templateDescriptions: Record<TemplateId, string> = {
-  corporate: "professional blue tones, clean sans-serif, structured layout, trustworthy feel",
-  academic: "formal serif fonts, muted colors, citation-friendly, authoritative",
-  startup: "bold gradients, high contrast, energetic feel, modern and disruptive",
-  minimal: "lots of whitespace, restrained typography, understated elegance",
-  dark: "dark backgrounds, neon accents, modern tech feel, sleek and premium",
-  seminar: "friendly rounded design, green tones, approachable and warm",
-  marketing: "vibrant warm colors, bold typography, eye-catching and dynamic",
-  research: "data-focused, blue tones, structured and precise, evidence-based",
-  education: "purple tones, playful but clear, student-friendly, engaging",
-  portfolio: "creative pink/coral palette, elegant serif headings, artistic",
-};
-
-const toneInstructionsMap: Record<string, string> = {
-  formal: "Use professional, precise language. Avoid contractions and slang. Maintain authoritative tone.",
-  casual: "Use conversational, friendly language. Contractions are fine. Be relatable.",
-  academic: "Use scholarly language with precise terminology. Include references where appropriate. Objective tone.",
-  persuasive: "Use compelling, action-oriented language. Include calls to action. Build urgency.",
-  inspirational: "Use uplifting, motivational language. Tell stories. Paint a vision of the future.",
-  technical: "Use precise technical terminology. Be specific and detailed. Include data points.",
-  conversational: "Write as if speaking directly to the audience. Use 'you' and 'we'. Be engaging.",
-};
-
 /**
  * Generate a single slide with full context.
  * This is the core of per-slide generation — each slide gets its own AI call
@@ -1693,10 +1671,10 @@ QUALITY RULES — FOLLOW EXACTLY
 6. Speaker notes must be CONVERSATIONAL — 1-2 sentences, natural speaking tone
 7. Include a transition phrase in notes when appropriate ("Now let's look at...", "Building on that...")
 
-TONE: ${toneInstructionsMap[analysis.tone] || toneInstructionsMap.conversational}
+TONE: ${TONE_INSTRUCTIONS[analysis.tone] || TONE_INSTRUCTIONS.conversational}
 AUDIENCE: ${analysis.audience} — adjust complexity and jargon accordingly
 PURPOSE: ${analysis.purpose} — this slide must serve this goal
-DESIGN STYLE: ${templateDescriptions[effectiveTemplate] || templateDescriptions.corporate}
+DESIGN STYLE: ${TEMPLATE_DESCRIPTIONS[effectiveTemplate] || TEMPLATE_DESCRIPTIONS.corporate}
 
 Return ONLY a JSON object (not an array) with the slide content.
 IMPORTANT: Return ONLY raw JSON, no markdown.`;

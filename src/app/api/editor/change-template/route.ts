@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Slide, TemplateId } from "@/types";
 import { rewriteSlidesStyle } from "@/lib/ai-engine";
+import { TEMPLATE_STYLE_MAP } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,21 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use the style rewrite function to adapt slides to new template
-    // We pass the template name as the "style" to guide the rewrite
-    const templateStyleMap: Record<string, "academic" | "business" | "casual"> = {
-      academic: "academic",
-      corporate: "business",
-      startup: "casual",
-      minimal: "business",
-      dark: "casual",
-      seminar: "academic",
-      marketing: "casual",
-      research: "academic",
-      education: "academic",
-      portfolio: "casual",
-    };
-
-    const style = templateStyleMap[newTemplateId] || "business";
+    const style = TEMPLATE_STYLE_MAP[newTemplateId] || "business";
 
     let updatedSlides: Slide[];
     try {

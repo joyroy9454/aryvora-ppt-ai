@@ -5,83 +5,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import type { Slide, TemplateId } from "@/types";
-
-// ── Theme definitions ──
-const THEME_STYLES: Record<
-  TemplateId,
-  { bg: string; title: string; body: string; accent: string; surface: string }
-> = {
-  corporate: {
-    bg: "#FFFFFF",
-    title: "#1B3A5C",
-    body: "#2D3748",
-    accent: "#2B6CB0",
-    surface: "#F7FAFC",
-  },
-  academic: {
-    bg: "#FAFAFA",
-    title: "#2D3748",
-    body: "#1A202C",
-    accent: "#805AD5",
-    surface: "#FFFFFF",
-  },
-  startup: {
-    bg: "#0F0F23",
-    title: "#FFFFFF",
-    body: "#A0AEC0",
-    accent: "#F59E0B",
-    surface: "#1A1A3E",
-  },
-  minimal: {
-    bg: "#FFFFFF",
-    title: "#111827",
-    body: "#4B5563",
-    accent: "#6B7280",
-    surface: "#F9FAFB",
-  },
-  dark: {
-    bg: "#0F172A",
-    title: "#F1F5F9",
-    body: "#94A3B8",
-    accent: "#63B3ED",
-    surface: "#1E293B",
-  },
-  seminar: {
-    bg: "#FFFFFF",
-    title: "#064E3B",
-    body: "#065F46",
-    accent: "#059669",
-    surface: "#ECFDF5",
-  },
-  marketing: {
-    bg: "#FFFBEB",
-    title: "#1C1917",
-    body: "#78716C",
-    accent: "#DC2626",
-    surface: "#FFFFFF",
-  },
-  research: {
-    bg: "#F0F9FF",
-    title: "#0C4A6E",
-    body: "#075985",
-    accent: "#0369A1",
-    surface: "#FFFFFF",
-  },
-  education: {
-    bg: "#FFFFFF",
-    title: "#1E1B4B",
-    body: "#4338CA",
-    accent: "#7C3AED",
-    surface: "#FAF5FF",
-  },
-  portfolio: {
-    bg: "#FFF1F2",
-    title: "#1F2937",
-    body: "#BE185D",
-    accent: "#EC4899",
-    surface: "#FFFFFF",
-  },
-};
+import { CSS_THEMES } from "@/lib/constants";
 
 function esc(s: string): string {
   return s
@@ -107,7 +31,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const t = THEME_STYLES[theme] || THEME_STYLES.corporate;
+    const t = CSS_THEMES[theme] || CSS_THEMES.corporate;
     const titleSafe = esc(title || "Presentation");
 
     const slideHtml = slides

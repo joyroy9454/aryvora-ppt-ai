@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Slide, TemplateId } from "@/types";
 import { callAI, parseJSON } from "@/lib/ai-engine";
+import { TEMPLATE_DESCRIPTIONS, TONE_INSTRUCTIONS } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,29 +54,6 @@ export async function POST(request: NextRequest) {
       bullets: s.bullets?.slice(0, 2), // First 2 bullets for context
     }));
 
-    const templateDescriptions: Record<string, string> = {
-      corporate: "professional blue tones, clean and structured",
-      academic: "formal, citation-friendly, authoritative",
-      startup: "bold gradients, high contrast, energetic",
-      minimal: "lots of whitespace, restrained typography",
-      dark: "dark backgrounds, neon accents, modern tech",
-      seminar: "friendly, green tones, approachable",
-      marketing: "vibrant warm colors, bold typography",
-      research: "data-focused, blue tones, precise",
-      education: "purple tones, playful but clear",
-      portfolio: "creative pink/coral, elegant serif headings",
-    };
-
-    const toneMap: Record<string, string> = {
-      formal: "professional and precise, no contractions",
-      casual: "conversational and friendly, contractions OK",
-      academic: "scholarly and objective, precise terminology",
-      persuasive: "compelling and action-oriented",
-      inspirational: "uplifting and motivational",
-      technical: "precise technical terminology, specific details",
-      conversational: "engaging, use 'you' and 'we'",
-    };
-
     const systemPrompt = `You are an expert presentation designer. Regenerate a single slide to improve its quality while maintaining coherence with the surrounding presentation.
 
 ═══════════════════════════════════════
@@ -105,8 +83,8 @@ QUALITY RULES
 4. Make bullets concise — max 10 words each, 3-5 bullets
 5. Ensure content does NOT duplicate information from neighboring slides
 6. Content should flow naturally from the previous slide and into the next
-7. Tone: ${toneMap[analysis?.tone || "conversational"] || toneMap.conversational}
-8. Design style: ${templateDescriptions[templateId || "corporate"] || templateDescriptions.corporate}
+7. Tone: ${TONE_INSTRUCTIONS[analysis?.tone || "conversational"] || TONE_INSTRUCTIONS.conversational}
+8. Design style: ${TEMPLATE_DESCRIPTIONS[templateId || "corporate"] || TEMPLATE_DESCRIPTIONS.corporate}
 9. Audience: ${analysis?.audience || "general"} — adjust complexity accordingly
 10. Add or improve speaker notes (1-2 conversational sentences)
 11. Add an appropriate emoji icon if not present
