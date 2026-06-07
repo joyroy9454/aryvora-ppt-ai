@@ -29,6 +29,7 @@ export default function Home() {
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [urlLoading, setUrlLoading] = useState(false);
+  const [exportProgress, setExportProgress] = useState<string | null>(null);
 
   // Undo/Redo
   const historyRef = useRef<Slide[][]>([[]]);
@@ -197,6 +198,7 @@ export default function Home() {
   );
 
   const handleExportPPTX = useCallback(async () => {
+    setExportProgress("Preparing PowerPoint export...");
     try {
       const res = await fetch("/api/export/pptx", {
         method: "POST",
@@ -211,14 +213,18 @@ export default function Home() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Export failed");
       }
+      setExportProgress("Downloading PPTX...");
       const blob = await res.blob();
       downloadBlob(blob, "pptx");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExportProgress(null);
     }
   }, [slides, analysis, templateId]);
 
   const handleExportPDF = useCallback(async () => {
+    setExportProgress("Preparing PDF export...");
     try {
       const res = await fetch("/api/export/pdf", {
         method: "POST",
@@ -233,6 +239,7 @@ export default function Home() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Export failed");
       }
+      setExportProgress("Opening print dialog...");
       const html = await res.text();
       const printWindow = window.open("", "_blank");
       if (printWindow) {
@@ -245,10 +252,13 @@ export default function Home() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExportProgress(null);
     }
   }, [slides, analysis, templateId]);
 
   const handleExportMarkdown = useCallback(async () => {
+    setExportProgress("Preparing Markdown export...");
     try {
       const res = await fetch("/api/export/markdown", {
         method: "POST",
@@ -263,18 +273,30 @@ export default function Home() {
       downloadBlob(blob, "md");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExportProgress(null);
     }
   }, [slides, analysis]);
 
-  const handleExportNotes = useCallback(() => {
-    if (!slides.length) return;
-    let text = `# Speaker Notes: ${analysis?.suggestedTitle || "Presentation"}\\n\\n`;
-    slides.forEach((s, i) => {
-      text += `## Slide ${i + 1}: ${s.heading}\\n`;
-      text += `${s.notes || "(No notes)"}\\n\\n`;
-    });
-    const blob = new Blob([text], { type: "text/plain" });
-    downloadBlob(blob, "txt");
+  const handleExportNotes = useCallback(async () => {
+    setExportProgress("Preparing speaker notes...");
+    try {
+      const res = await fetch("/api/export/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slides,
+          title: analysis?.suggestedTitle || "Presentation",
+        }),
+      });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      downloadBlob(blob, "txt");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExportProgress(null);
+    }
   }, [slides, analysis]);
 
   const handleStartOver = useCallback(() => {
@@ -302,6 +324,16 @@ export default function Home() {
             >
               &times;
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Export Progress Toast */}
+      {exportProgress && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-brand-50 border border-brand-200 text-brand-700 px-5 py-3 rounded-xl shadow-lg max-w-md text-sm">
+          <div className="flex items-center gap-3">
+            <span className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full spinner shrink-0" />
+            <span>{exportProgress}</span>
           </div>
         </div>
       )}

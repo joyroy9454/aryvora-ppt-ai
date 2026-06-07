@@ -14,6 +14,29 @@ import {
   type SlidePlan,
 } from "@/lib/ai-engine";
 
+// ── Retry helper with exponential backoff ──
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelayMs = 1000,
+  onRetry?: (attempt: number, err: unknown) => void
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxRetries) {
+        const delay = baseDelayMs * Math.pow(2, attempt - 1);
+        onRetry?.(attempt, err);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -49,18 +72,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Step 1: Summarize long input ──
+    // ── Step 1: Summarize long input (with retry) ──
     let processedInput = inputText;
     try {
-      processedInput = await summarizeInput(inputText, 3000);
+      processedInput = await retryWithBackoff(
+        () => summarizeInput(inputText, 3000),
+        2,
+        800
+      );
     } catch {
       // Continue with original input
     }
 
-    // ── Step 2: Analyze input ──
+    // ── Step 2: Analyze input (with retry) ──
     let analysis: ExtendedAnalysis;
     try {
-      analysis = await analyzeInput(processedInput, inputMode);
+      analysis = await retryWithBackoff(
+        () => analyzeInput(processedInput, inputMode),
+        3,
+        1000
+      );
     } catch {
       analysis = {
         category: "general" as const,
@@ -88,41 +119,58 @@ export async function POST(request: NextRequest) {
       analysis.suggestedTemplate ||
       autoSelectTemplate(analysis.category, analysis.audience, analysis.purpose);
 
-    // ── Step 3: Generate detailed slide plan (outline) ──
+    // ── Step 3: Generate detailed slide plan (outline) (with retry) ──
     let slidePlans: SlidePlan[] | undefined;
     try {
-      slidePlans = await generateOutline(processedInput, analysis);
+      slidePlans = await retryWithBackoff(
+        () => generateOutline(processedInput, analysis),
+        3,
+        1000
+      );
     } catch {
       slidePlans = undefined;
     }
 
-    // ── Step 4: Generate slides ONE BY ONE ──
+    // ── Step 4: Generate slides ONE BY ONE (with retry) ──
     let slides: Slide[];
     try {
-      slides = await generateSlidesOneByOne(
-        processedInput,
-        analysis,
-        effectiveTemplate,
-        inputMode,
-        undefined, // no progress callback on server
-        slidePlans
+      slides = await retryWithBackoff(
+        () =>
+          generateSlidesOneByOne(
+            processedInput,
+            analysis,
+            effectiveTemplate,
+            inputMode,
+            undefined, // no progress callback on server
+            slidePlans
+          ),
+        2,
+        1500
       );
     } catch {
       slides = generateFallbackSlides(analysis);
     }
 
-    // ── Step 5: Enhance content quality ──
+    // ── Step 5: Enhance content quality (with retry) ──
     if (enhance && slides.length > 0) {
       try {
-        slides = await enhanceContent(slides, analysis);
+        slides = await retryWithBackoff(
+          () => enhanceContent(slides, analysis),
+          2,
+          1000
+        );
       } catch {
         // Enhancement failed — continue with unenhanced slides
       }
     }
 
-    // ── Step 6: Generate speaker notes ──
+    // ── Step 6: Generate speaker notes (with retry) ──
     try {
-      slides = await generateSpeakerNotes(slides);
+      slides = await retryWithBackoff(
+        () => generateSpeakerNotes(slides),
+        2,
+        1000
+      );
     } catch {
       // Notes are optional
     }
