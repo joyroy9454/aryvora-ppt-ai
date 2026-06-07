@@ -153,7 +153,7 @@ export function featureExists(flagName: string): boolean {
  * Get all enabled features for a given context
  */
 export function getEnabledFeatures(context?: FeatureContext): string[] {
-  return Object.keys(FILTERED_FLAGS).filter((name) => isFeatureEnabled(name, context));
+  return Object.keys(FEATURE_FLAGS).filter((name) => isFeatureEnabled(name, context));
 }
 
 // Simple hash for consistent percentage rollout
@@ -166,6 +166,3 @@ function hashString(str: string): number {
   }
   return Math.abs(hash);
 }
-
-// Fix the typo in the function
-const FILTERED_FLAGS = FEATURE_FLAGS;
