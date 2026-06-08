@@ -725,7 +725,7 @@ export interface OutlineSection {
 export type ImagePosition = "left" | "right" | "background" | "none";
 
 // Visual type for the kind of visual element to use
-export type VisualType = "image" | "chart" | "diagram" | "icon" | "none";
+export type VisualType = "image" | "chart" | "diagram" | "icon" | "quote" | "none";
 
 export interface SlidePlan {
   index: number;
