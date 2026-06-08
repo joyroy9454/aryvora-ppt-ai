@@ -9,21 +9,15 @@
 import { callAI, parseJSON } from "../ai-engine";
 import { TEMPLATE_DESCRIPTIONS } from "../constants";
 import type { TopicCategory, AudienceType, ToneType } from "@/types";
+import type { ExtendedAnalysis } from "../ai-engine";
 
 // ---------- Extended types (extend base types from @/types) ----------
 
 /** Extends TopicCategory — same as TopicCategory in @/types */
 type PresentationCategory = TopicCategory;
 
-/** Purpose type — not in base types */
-export type PurposeType =
-  | "inform"
-  | "persuade"
-  | "educate"
-  | "pitch"
-  | "report"
-  | "inspire"
-  | "motivate";
+/** Purpose type — matches ExtendedAnalysis.purpose */
+type PurposeType = ExtendedAnalysis["purpose"];
 
 export type ComplexityLevel = "basic" | "intermediate" | "advanced";
 

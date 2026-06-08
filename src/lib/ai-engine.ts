@@ -96,7 +96,7 @@ export function parseJSON(raw: string): any {
 // ============================================================
 
 export interface ExtendedAnalysis extends AIAnalysis {
-  purpose: "inform" | "persuade" | "educate" | "pitch" | "report" | "inspire";
+  purpose: "inform" | "persuade" | "educate" | "pitch" | "report" | "inspire" | "motivate";
   suggestedTemplate: TemplateId;
   /** The specific presentation category detected (e.g. "startup", "academic", "sales") */
   presentationCategory: TopicCategory;
