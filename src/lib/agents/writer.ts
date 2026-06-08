@@ -22,7 +22,7 @@ import type {
   TemplateId,
   ExtendedAnalysis,
   GenerationProgress,
-} from "../types";
+} from "@/types";
 
 // Re-export useful types for consumers of this module
 export type { Slide, SlidePlan, SlideType, TemplateId, ExtendedAnalysis, GenerationProgress };

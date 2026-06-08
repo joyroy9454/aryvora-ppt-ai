@@ -13,7 +13,7 @@
 
 import { callAI, parseJSON } from "../ai-engine";
 import type { SlidePlan, VisualType, ImagePosition } from "../ai-engine";
-import type { TopicCategory } from "../types";
+import type { TopicCategory } from "@/types";
 
 // ---------- Types ----------
 
