@@ -19,11 +19,11 @@ import type {
   Slide,
   SlideType,
   TemplateId,
+  GenerationProgress,
 } from "@/types";
 import type {
   SlidePlan,
   ExtendedAnalysis,
-  GenerationProgress,
 } from "../ai-engine";
 
 // Re-export useful types for consumers of this module
