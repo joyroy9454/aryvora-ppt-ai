@@ -225,6 +225,11 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══════════════════════════════════════
+    // STEP 4.5 — Attach images to content slides
+    // ═══════════════════════════════════════
+    slides = attachImagesToSlides(slides, analysis);
+
+    // ═══════════════════════════════════════
     // STEP 5 — Quality Reviewer Agent
     // ═══════════════════════════════════════
     // First: sync structural fixes (always runs)
@@ -292,7 +297,7 @@ export async function POST(request: NextRequest) {
 // Fixes: too many quotes, too many of the same type, missing variety.
 function enforceSlideVariety(
   plans: SlidePlan[],
-  analysis: { presentationCategory: string; suggestedSlideCount: number }
+  analysis: { presentationCategory: string; suggestedSlideCount: number; keywords: string[] }
 ): SlidePlan[] {
   if (plans.length <= 4) return plans;
 
@@ -349,5 +354,47 @@ function enforceSlideVariety(
     }
   }
 
+  // Fix 4: Ensure some content slides have images for visual interest
+  // Add images to ~40% of content-type slides
+  let imageCount = 0;
+  const maxImages = Math.max(1, Math.round(contentPlans.filter(p => p.type === "content").length * 0.4));
+  const keywords = analysis.keywords.length > 0 ? analysis.keywords : ["professional", "technology", "business"];
+  for (let i = 0; i < contentPlans.length && imageCount < maxImages; i++) {
+    const p = contentPlans[i];
+    if (p.type === "content" && !p.needsImage) {
+      p.needsImage = true;
+      p.imageKeyword = keywords[i % keywords.length] || "professional";
+      p.imagePosition = i % 2 === 0 ? "left" : "right";
+      p.visualType = "image";
+      imageCount++;
+    }
+  }
+
   return plans;
+}
+
+// ── Image Attacher ──
+// Post-processes generated slides to ensure content slides have images.
+// Adds Picsum image URLs to content-type slides that don't have them.
+function attachImagesToSlides(
+  slides: Slide[],
+  analysis: { keywords: string[] }
+): Slide[] {
+  const keywords = analysis.keywords.length > 0 ? analysis.keywords : ["professional", "technology", "business"];
+  let imageCount = 0;
+  const contentSlides = slides.filter(s => s.type === "content" || s.type === "summary");
+  const maxImages = Math.max(1, Math.round(contentSlides.length * 0.5));
+
+  for (let i = 0; i < slides.length && imageCount < maxImages; i++) {
+    const s = slides[i];
+    if ((s.type === "content" || s.type === "summary") && !s.imageUrl) {
+      const kw = keywords[i % keywords.length] || "professional";
+      s.imageUrl = `https://picsum.photos/seed/${encodeURIComponent(kw.toLowerCase().replace(/\s+/g, "-"))}/800/600`;
+      s.imagePosition = i % 2 === 0 ? "left" : "right";
+      s.imagePrompt = kw;
+      imageCount++;
+    }
+  }
+
+  return slides;
 }
