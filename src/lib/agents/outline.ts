@@ -193,8 +193,8 @@ VARY THE SLIDE TYPES across content slides based on the category's visual strate
         ? "use selectively"
         : "avoid unless necessary"
   }
-- Use "quote" for impactful quotes (1 per presentation)
-- Use "timeline" for chronological content
+- Use "quote" for impactful quotes — MAX 1 per presentation, never more
+- Use "timeline" for chronological content (1 per presentation max)
 - Use "process" for step-by-step flows — ${
     designProfile.diagramFrequency === "frequent"
       ? "USE FREQUENTLY"
@@ -202,8 +202,8 @@ VARY THE SLIDE TYPES across content slides based on the category's visual strate
         ? "use selectively"
         : "avoid unless necessary"
   }
-- Use "comparison" for side-by-side analysis
-- Use "divider" between major sections (every 4-5 slides)
+- Use "comparison" for side-by-side analysis (1 per presentation)
+- Use "divider" between major sections (every 4-5 slides, max 2)
 - Use "chart" for data visualization — ${
     designProfile.chartFrequency === "frequent"
       ? "USE FREQUENTLY"
@@ -211,9 +211,15 @@ VARY THE SLIDE TYPES across content slides based on the category's visual strate
         ? "use selectively"
         : "avoid unless necessary"
   }
-- Use "case-study" for real-world examples
-- Use "diagram" for system/architecture visuals
-- Use "image-left" / "image-right" for visual-heavy slides
+- Use "case-study" for real-world examples (1 per presentation)
+- Use "diagram" for system/architecture visuals (1-2 per presentation)
+- Use "image-left" / "image-right" for visual-heavy slides (1-2 per presentation)
+
+CRITICAL VARIETY RULES:
+- NO more than 1 quote slide in the entire presentation
+- NO more than 2 slides of the same type in a row
+- At least 3 different slide types must be used in the content section
+- Prefer "content" + "statistic" + "two-column" + "process" combinations over quotes
 
 Each slide must have:
 - "heading": a SPECIFIC, ENGAGING title in ${designProfile.headingStyle} style (not generic)

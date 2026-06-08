@@ -197,6 +197,11 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══════════════════════════════════════
+    // STEP 3.5 — Enforce slide type variety
+    // ═══════════════════════════════════════
+    slidePlans = enforceSlideVariety(slidePlans, analysis);
+
+    // ═══════════════════════════════════════
     // STEP 4 — Slide Writer Agent
     // ═══════════════════════════════════════
     let slides: Slide[];
@@ -279,4 +284,69 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// ── Slide Variety Enforcer ──
+// Post-processes the AI-generated slide plan to ensure type diversity.
+// Fixes: too many quotes, too many of the same type, missing variety.
+function enforceSlideVariety(
+  plans: { type: string; heading: string; keyPoints: string[]; notes: string }[],
+  analysis: { presentationCategory: string; suggestedSlideCount: number }
+): { type: string; heading: string; keyPoints: string[]; notes: string }[] {
+  if (plans.length <= 4) return plans;
+
+  const contentPlans = plans.slice(2, -2); // Exclude title, agenda, summary, closing
+  if (contentPlans.length === 0) return plans;
+
+  // Count types
+  const typeCounts = new Map<string, number>();
+  for (const p of contentPlans) {
+    typeCounts.set(p.type, (typeCounts.get(p.type) || 0) + 1);
+  }
+
+  // Fix 1: Max 1 quote
+  const quotePlans = contentPlans.filter(p => p.type === "quote");
+  if (quotePlans.length > 1) {
+    let kept = false;
+    for (const p of contentPlans) {
+      if (p.type === "quote") {
+        if (!kept) {
+          kept = true;
+        } else {
+          // Convert extra quotes to content
+          p.type = "content";
+        }
+      }
+    }
+  }
+
+  // Fix 2: No more than 2 consecutive same type
+  for (let i = 2; i < plans.length - 1; i++) {
+    if (plans[i].type === plans[i - 1].type && plans[i].type === plans[i - 2].type) {
+      // Change the third consecutive to a different type
+      const alternatives = ["content", "two-column", "statistic", "process", "case-study"];
+      const usedTypes = new Set(plans.slice(Math.max(0, i - 5), i).map(p => p.type));
+      const fallback = alternatives.find(a => !usedTypes.has(a)) || "content";
+      plans[i].type = fallback;
+    }
+  }
+
+  // Fix 3: Ensure at least 3 different types in content section
+  const contentTypes = new Set(contentPlans.map(p => p.type));
+  if (contentTypes.size < 3 && contentPlans.length >= 4) {
+    const preferred = ["statistic", "two-column", "process", "case-study", "comparison"];
+    let typeIdx = 0;
+    for (let i = 0; i < contentPlans.length && contentTypes.size < 3; i++) {
+      if (contentPlans[i].type === "content" && i % 3 === 2) {
+        const newType = preferred[typeIdx % preferred.length];
+        if (!contentTypes.has(newType)) {
+          contentPlans[i].type = newType;
+          contentTypes.add(newType);
+          typeIdx++;
+        }
+      }
+    }
+  }
+
+  return plans;
 }

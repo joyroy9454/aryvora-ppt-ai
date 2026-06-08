@@ -1767,6 +1767,9 @@ Generate this ONE slide. Make it focused, impactful, and presentation-ready. Fol
       chartType: content.chartType,
       icon: content.icon || getIconForType(plan.type, analysis.category),
       notes: content.notes || plan.notes,
+      imageUrl: content.imageUrl || (plan.needsImage && plan.imageKeyword ? `https://picsum.photos/seed/${encodeURIComponent(plan.imageKeyword.toLowerCase().replace(/\s+/g, "-"))}/800/600` : undefined),
+      imagePrompt: content.imagePrompt || plan.imageKeyword || undefined,
+      imagePosition: plan.imagePosition !== "none" ? plan.imagePosition : undefined,
       index: plan.index,
     };
   } catch {
@@ -1901,6 +1904,10 @@ export function createSlideFromPlan(plan: SlidePlan, analysis: ExtendedAnalysis)
     case "summary":
     case "qa":
       slide.bullets = plan.keyPoints;
+      if (plan.needsImage && plan.imageKeyword) {
+        slide.imageUrl = getPicsumUrl(plan.imageKeyword);
+        slide.imagePosition = plan.imagePosition !== "none" ? plan.imagePosition : "right";
+      }
       break;
     case "statistic":
       slide.stats = [
@@ -1951,6 +1958,12 @@ export function createSlideFromPlan(plan: SlidePlan, analysis: ExtendedAnalysis)
       break;
     case "diagram":
       slide.bullets = plan.keyPoints;
+      break;
+    case "image-left":
+    case "image-right":
+      slide.bullets = plan.keyPoints;
+      slide.imageUrl = plan.imageKeyword ? getPicsumUrl(plan.imageKeyword) : getPicsumUrl(analysis.keywords[0] || analysis.category);
+      slide.imagePosition = plan.type === "image-left" ? "left" : "right";
       break;
   }
 
