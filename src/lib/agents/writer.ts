@@ -17,12 +17,14 @@ import {
 import { TEMPLATE_DESCRIPTIONS } from "../constants";
 import type {
   Slide,
-  SlidePlan,
   SlideType,
   TemplateId,
+} from "@/types";
+import type {
+  SlidePlan,
   ExtendedAnalysis,
   GenerationProgress,
-} from "@/types";
+} from "../ai-engine";
 
 // Re-export useful types for consumers of this module
 export type { Slide, SlidePlan, SlideType, TemplateId, ExtendedAnalysis, GenerationProgress };

@@ -174,6 +174,7 @@ function getVisualStrategy(category: TopicCategory): VisualStrategy {
         preferredVisuals: ["image", "chart", "icon"],
         imageFrequency: "selective",
         useBackgrounds: true,
+        useDiagrams: false,
         useCharts: true,
         useIcons: true,
         style: "persuasive, benefit-focused — product shots, ROI data, testimonials",
@@ -294,7 +295,7 @@ Return ONLY raw JSON array.`;
           keyPoints: p.keyPoints.slice(0, 2),
         }));
 
-        const userPrompt = `Decide visuals for these ${plides.length} slides:
+        const userPrompt = `Decide visuals for these ${plans.length} slides:
 
 ${JSON.stringify(plansSummary, null, 2)}
 

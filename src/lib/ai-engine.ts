@@ -502,7 +502,7 @@ Return ONLY a JSON object with these fields:
   "category": "technology|business|education|science|health|marketing|finance|creative|general",
   "audience": "students|professionals|executives|general|technical|investors|customers",
   "tone": "formal|casual|academic|persuasive|inspirational|technical|conversational",
-  "purpose": "inform|persuade|educate|pitch|report|inspire",
+  "purpose": "inform|persuade|educate|pitch|report|inspire|motivate",
   "presentationCategory": "academic|student|business|corporate|startup|research|seminar|marketing|technical|creative|general|training|workshop|sales|proposal|report|product-demo",
   "suggestedSlideCount": number (5-25),
   "suggestedTitle": "A compelling, specific presentation title (not generic)",
@@ -519,6 +519,7 @@ ANALYSIS RULES:
   * "educate" → if teaching, explaining concepts, academic
   * "report" → if presenting data, results, quarterly/annual review
   * "inspire" → if motivational, vision-setting, keynote-style
+  * "motivate" → if driving action, energizing a team, rallying support
   * "inform" → default for general knowledge sharing
 
 - Detect the PRESENTATION CATEGORY (presentationCategory field):
