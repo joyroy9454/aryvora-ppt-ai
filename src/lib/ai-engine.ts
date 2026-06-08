@@ -1882,7 +1882,7 @@ function getSlideTypeInstructions(type: SlideType): string {
   }
 }
 
-function createSlideFromPlan(plan: SlidePlan, analysis: ExtendedAnalysis): Slide {
+export function createSlideFromPlan(plan: SlidePlan, analysis: ExtendedAnalysis): Slide {
   const slide: Slide = {
     id: `slide-${Date.now()}-${plan.index}`,
     type: plan.type,

@@ -8,30 +8,14 @@
 
 import { callAI, parseJSON } from "../ai-engine";
 import { TEMPLATE_DESCRIPTIONS } from "../constants";
+import type { TopicCategory, AudienceType, ToneType } from "@/types";
 
-// ---------- Types ----------
+// ---------- Extended types (extend base types from @/types) ----------
 
-export type PresentationCategory =
-  | "academic"
-  | "student"
-  | "business"
-  | "corporate"
-  | "startup"
-  | "research"
-  | "seminar"
-  | "marketing"
-  | "technical"
-  | "creative"
-  | "general"
-  | "training"
-  | "workshop"
-  | "sales"
-  | "proposal"
-  | "report"
-  | "product-demo"
-  | "event"
-  | "motivational";
+/** Extends TopicCategory — same as TopicCategory in @/types */
+type PresentationCategory = TopicCategory;
 
+/** Purpose type — not in base types */
 export type PurposeType =
   | "inform"
   | "persuade"
@@ -40,26 +24,6 @@ export type PurposeType =
   | "report"
   | "inspire"
   | "motivate";
-
-export type AudienceType =
-  | "students"
-  | "professionals"
-  | "executives"
-  | "general"
-  | "technical"
-  | "investors"
-  | "customers"
-  | "teachers"
-  | "researchers";
-
-export type ToneType =
-  | "formal"
-  | "casual"
-  | "academic"
-  | "persuasive"
-  | "inspirational"
-  | "technical"
-  | "conversational";
 
 export type ComplexityLevel = "basic" | "intermediate" | "advanced";
 

@@ -94,7 +94,9 @@ export type AudienceType =
   | "general"
   | "technical"
   | "investors"
-  | "customers";
+  | "customers"
+  | "teachers"
+  | "researchers";
 
 export type ToneType =
   | "formal"
