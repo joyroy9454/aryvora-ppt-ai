@@ -382,12 +382,12 @@ function attachImagesToSlides(
 ): Slide[] {
   const keywords = analysis.keywords.length > 0 ? analysis.keywords : ["professional", "technology", "business"];
   let imageCount = 0;
-  const contentSlides = slides.filter(s => s.type === "content" || s.type === "summary");
-  const maxImages = Math.max(1, Math.round(contentSlides.length * 0.5));
+  const contentSlides = slides.filter(s => s.type === "content" || s.type === "summary" || s.type === "two-column");
+  const maxImages = Math.max(2, Math.round(contentSlides.length * 0.75));
 
   for (let i = 0; i < slides.length && imageCount < maxImages; i++) {
     const s = slides[i];
-    if ((s.type === "content" || s.type === "summary") && !s.imageUrl) {
+    if ((s.type === "content" || s.type === "summary" || s.type === "two-column") && !s.imageUrl) {
       const kw = keywords[i % keywords.length] || "professional";
       s.imageUrl = `https://picsum.photos/seed/${encodeURIComponent(kw.toLowerCase().replace(/\s+/g, "-"))}/800/600`;
       s.imagePosition = i % 2 === 0 ? "left" : "right";
