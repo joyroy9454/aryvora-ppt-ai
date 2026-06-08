@@ -178,6 +178,7 @@ export interface Slide {
   chartType?: "bar" | "pie" | "line";
   imageUrl?: string;
   imagePrompt?: string;
+  imagePosition?: "left" | "right" | "background" | "none";
   icon?: string;
   notes?: string;
   layout?: SlideLayout;
