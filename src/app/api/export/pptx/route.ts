@@ -293,7 +293,7 @@ function addTwoColumnSlide(s: PptxGenJS.Slide, sl: Slide, t: any, isComparison: 
 // ── Helpers ──
 
 function addHeader(s: PptxGenJS.Slide, sl: Slide, t: any, x = 0.6) {
-  s.addText(trunc(sl.heading, 90), { x, y: 0.35, w: 12.13, h: 0.8, fontSize: 30, bold: true, color: t.titleColor, fontFace: F });
+  s.addText(trunc(sl.heading, 120), { x, y: 0.35, w: 12.13, h: 0.8, fontSize: 30, bold: true, color: t.titleColor, fontFace: F });
   addLine(s, x, 0.82, 1.5, 0.06, t.accent);
 }
 
