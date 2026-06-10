@@ -374,8 +374,8 @@ function enforceSlideVariety(
 }
 
 // ── Image Attacher ──
-// Post-processes generated slides to ensure content slides have images.
-// Adds Picsum image URLs to content-type slides that don't have them.
+// Tags content slides with image keywords for local SVG generation.
+// No external HTTP needed — the export route generates images locally.
 function attachImagesToSlides(
   slides: Slide[],
   analysis: { keywords: string[] }
@@ -387,11 +387,11 @@ function attachImagesToSlides(
 
   for (let i = 0; i < slides.length && imageCount < maxImages; i++) {
     const s = slides[i];
-    if ((s.type === "content" || s.type === "summary" || s.type === "two-column") && !s.imageUrl) {
+    if ((s.type === "content" || s.type === "summary" || s.type === "two-column") && !s.imageKeyword) {
       const kw = keywords[i % keywords.length] || "professional";
-      s.imageUrl = `https://picsum.photos/seed/${encodeURIComponent(kw.toLowerCase().replace(/\s+/g, "-"))}/800/600`;
-      s.imagePosition = i % 2 === 0 ? "left" : "right";
+      s.imageKeyword = kw;
       s.imagePrompt = kw;
+      s.imagePosition = i % 2 === 0 ? "left" : "right";
       imageCount++;
     }
   }
