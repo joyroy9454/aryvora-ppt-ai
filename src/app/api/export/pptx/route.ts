@@ -10,6 +10,11 @@ function trunc(s: string, n: number): string { return (!s || s.length <= n) ? (s
 const F = "Arial";
 const FG = "Georgia";
 
+// pptxgenjs supports `transparency` at runtime but its TypeScript types omit it.
+// These helpers cast safely so we can use transparency without `any` everywhere.
+function shapeProps(p: Record<string, unknown>): PptxGenJS.ShapeProps { return p as unknown as PptxGenJS.ShapeProps; }
+function textProps(p: Record<string, unknown>): PptxGenJS.TextPropsOptions { return p as unknown as PptxGenJS.TextPropsOptions; }
+
 export async function POST(request: NextRequest) {
   try {
     const { slides, title, theme } = (await request.json()) as { slides: Slide[]; title: string; theme: TemplateId };
@@ -84,10 +89,10 @@ function addTitleSlide(s: PptxGenJS.Slide, sl: Slide, t: any) {
   // Left accent bar
   s.addShape(SHAPE.rect, { x: 0, y: 0, w: 0.12, h: 7.5, fill: { color: hex(t.accent) } });
   // Decorative right-side accent block
-  s.addShape(SHAPE.rect, { x: 11.5, y: 0, w: 1.83, h: 7.5, fill: { color: hex(t.accent) }, transparency: 85 });
+  s.addShape(SHAPE.rect, shapeProps({ x: 11.5, y: 0, w: 1.83, h: 7.5, fill: { color: hex(t.accent) }, transparency: 85 }));
   // Decorative circles
-  s.addShape(SHAPE.ellipse, { x: 10.5, y: -1, w: 4, h: 4, fill: { color: hex(t.accent) }, transparency: 90 });
-  s.addShape(SHAPE.ellipse, { x: 11, y: 5, w: 3, h: 3, fill: { color: hex(t.titleColor) }, transparency: 92 });
+  s.addShape(SHAPE.ellipse, shapeProps({ x: 10.5, y: -1, w: 4, h: 4, fill: { color: hex(t.accent) }, transparency: 90 }));
+  s.addShape(SHAPE.ellipse, shapeProps({ x: 11, y: 5, w: 3, h: 3, fill: { color: hex(t.titleColor) }, transparency: 92 }));
   // Title
   s.addText(trunc(sl.heading, 90), { x: 1.0, y: 1.5, w: 10.0, h: 2.0, fontSize: 44, bold: true, color: hex(t.titleColor), align: "center", fontFace: F, valign: "middle" });
   if (sl.sub) s.addText(trunc(sl.sub, 120), { x: 1.5, y: 3.5, w: 9.0, h: 1.0, fontSize: 20, color: hex(t.accent), align: "center", fontFace: F, valign: "middle" });
@@ -103,7 +108,7 @@ function addContentSlide(s: PptxGenJS.Slide, sl: Slide, t: any) {
   // Left accent bar
   s.addShape(SHAPE.rect, { x: 0, y: 0, w: 0.08, h: 7.5, fill: { color: hex(t.accent) } });
   // Subtle top accent line
-  s.addShape(SHAPE.rect, { x: 0, y: 0, w: 13.33, h: 0.04, fill: { color: hex(t.accent) }, transparency: 60 });
+  s.addShape(SHAPE.rect, shapeProps({ x: 0, y: 0, w: 13.33, h: 0.04, fill: { color: hex(t.accent) }, transparency: 60 }));
   addHeader(s, sl, t);
   const bullets = sl.bullets || [];
   if (bullets.length > 0) {
@@ -120,7 +125,7 @@ function addStatisticSlide(s: PptxGenJS.Slide, sl: Slide, t: any) {
   // Left accent bar
   s.addShape(SHAPE.rect, { x: 0, y: 0, w: 0.08, h: 7.5, fill: { color: hex(t.accent) } });
   // Subtle background shape
-  s.addShape(SHAPE.roundRect, { x: 0.3, y: 1.0, w: 12.73, h: 6.0, fill: { color: hex(t.surface) }, transparency: 50, rectRadius: 0.15 });
+  s.addShape(SHAPE.roundRect, shapeProps({ x: 0.3, y: 1.0, w: 12.73, h: 6.0, fill: { color: hex(t.surface) }, transparency: 50, rectRadius: 0.15 }));
   addHeader(s, sl, t);
   const stats = (sl.stats || []).slice(0, 4);
   if (stats.length > 0) {
@@ -147,7 +152,7 @@ function addQuoteSlide(s: PptxGenJS.Slide, sl: Slide, t: any) {
   // Left accent bar (thicker)
   s.addShape(SHAPE.rect, { x: 0, y: 0, w: 0.15, h: 7.5, fill: { color: hex(t.accent) } });
   // Decorative quote mark
-  s.addText("\u201C", { x: 0.8, y: 0.3, w: 2.0, h: 2.0, fontSize: 100, color: hex(t.accent), fontFace: FG, transparency: 70 });
+  s.addText("\u201C", textProps({ x: 0.8, y: 0.3, w: 2.0, h: 2.0, fontSize: 100, color: hex(t.accent), fontFace: FG, transparency: 70 }));
   // Quote text
   s.addText(trunc(sl.quote || "", 200), { x: 2.2, y: 1.2, w: 9.0, h: 2.5, fontSize: 24, color: hex(t.bodyColor), align: "center", fontFace: FG, valign: "middle" });
   if (sl.author) {
@@ -155,7 +160,7 @@ function addQuoteSlide(s: PptxGenJS.Slide, sl: Slide, t: any) {
     s.addText("\u2014 " + trunc(sl.author, 60), { x: 2.2, y: 4.3, w: 9.0, h: 0.8, fontSize: 16, color: hex(t.accent), align: "center", fontFace: F });
   }
   // Decorative bottom accent
-  s.addShape(SHAPE.rect, { x: 0, y: 7.3, w: 13.33, h: 0.2, fill: { color: hex(t.accent) }, transparency: 50 });
+  s.addShape(SHAPE.rect, shapeProps({ x: 0, y: 7.3, w: 13.33, h: 0.2, fill: { color: hex(t.accent) }, transparency: 50 }));
 }
 
 function addTimelineSlide(s: PptxGenJS.Slide, sl: Slide, t: any) {
@@ -279,7 +284,7 @@ function addDividerSlide(s: PptxGenJS.Slide, sl: Slide, t: any) {
   s.addShape(SHAPE.rect, { x: 0, y: 0, w: 13.33, h: 7.5, fill: { color: hex(t.surface) } });
   // Large decorative accent block
   s.addShape(SHAPE.rect, { x: 0, y: 0, w: 0.15, h: 7.5, fill: { color: hex(t.accent) } });
-  s.addShape(SHAPE.rect, { x: 13.08, y: 0, w: 0.25, h: 7.5, fill: { color: hex(t.accent) }, transparency: 70 });
+  s.addShape(SHAPE.rect, shapeProps({ x: 13.08, y: 0, w: 0.25, h: 7.5, fill: { color: hex(t.accent) }, transparency: 70 }));
   // Heading
   s.addText(trunc(sl.heading, 60), { x: 1, y: 2.5, w: 11.33, h: 1.5, fontSize: 40, bold: true, color: hex(t.titleColor), align: "center", fontFace: F, valign: "middle" });
   // Decorative line
@@ -290,7 +295,7 @@ function addDividerSlide(s: PptxGenJS.Slide, sl: Slide, t: any) {
 function addSummarySlide(s: PptxGenJS.Slide, sl: Slide, t: any) {
   s.addShape(SHAPE.rect, { x: 0, y: 0, w: 0.08, h: 7.5, fill: { color: hex(t.accent) } });
   // Subtle background accent
-  s.addShape(SHAPE.rect, { x: 0, y: 0, w: 13.33, h: 0.04, fill: { color: hex(t.accent) }, transparency: 50 });
+  s.addShape(SHAPE.rect, shapeProps({ x: 0, y: 0, w: 13.33, h: 0.04, fill: { color: hex(t.accent) }, transparency: 50 }));
   addHeader(s, sl, t);
   addBullets(s, sl.bullets || [], t, 0.8, 1.2, 11.8, 18);
 }
@@ -299,7 +304,7 @@ function addQASlide(s: PptxGenJS.Slide, sl: Slide, t: any) {
   s.addShape(SHAPE.rect, { x: 0, y: 0, w: 13.33, h: 7.5, fill: { color: hex(t.surface) } });
   s.addShape(SHAPE.rect, { x: 0, y: 0, w: 0.15, h: 7.5, fill: { color: hex(t.accent) } });
   // Large question mark
-  s.addText("?", { x: 5.5, y: 2.8, w: 2.33, h: 2.0, fontSize: 80, color: hex(t.accent), align: "center", fontFace: F, transparency: 40 });
+  s.addText("?", textProps({ x: 5.5, y: 2.8, w: 2.33, h: 2.0, fontSize: 80, color: hex(t.accent), align: "center", fontFace: F, transparency: 40 }));
   s.addText(trunc(sl.heading, 50), { x: 1, y: 1.5, w: 11.33, h: 1.5, fontSize: 42, bold: true, color: hex(t.titleColor), align: "center", fontFace: F, valign: "middle" });
   if (sl.bullets?.length) s.addText(sl.bullets.map(b => trunc(b, 60)).join("  \u2022  "), { x: 1.5, y: 5.0, w: 10.33, h: 1.0, fontSize: 15, color: hex(t.bodyColor), align: "center", fontFace: F });
 }
@@ -335,7 +340,7 @@ function addClosingSlide(s: PptxGenJS.Slide, sl: Slide, t: any) {
   s.addShape(SHAPE.rect, { x: 0, y: 0, w: 13.33, h: 7.5, fill: { color: hex(t.surface) } });
   s.addShape(SHAPE.rect, { x: 0, y: 0, w: 0.08, h: 7.5, fill: { color: hex(t.accent) } });
   // Decorative top accent
-  s.addShape(SHAPE.rect, { x: 0, y: 0, w: 13.33, h: 0.06, fill: { color: hex(t.accent) }, transparency: 60 });
+  s.addShape(SHAPE.rect, shapeProps({ x: 0, y: 0, w: 13.33, h: 0.06, fill: { color: hex(t.accent) }, transparency: 60 }));
   s.addText(trunc(sl.heading, 60), { x: 1, y: 1.8, w: 11.33, h: 2.0, fontSize: 44, bold: true, color: hex(t.titleColor), align: "center", fontFace: F, valign: "middle" });
   if (sl.sub) s.addText(trunc(sl.sub, 80), { x: 2, y: 3.8, w: 9.33, h: 1.0, fontSize: 20, color: hex(t.accent), align: "center", fontFace: F });
   if (sl.bullets?.length) s.addText(sl.bullets.map(b => trunc(b, 50)).join("  \u2022  "), { x: 1.5, y: 4.8, w: 10.33, h: 1.5, fontSize: 16, color: hex(t.bodyColor), align: "center", fontFace: F });
