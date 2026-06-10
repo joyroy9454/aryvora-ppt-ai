@@ -177,7 +177,7 @@ function generateWavePattern(theme: ImageTheme, keyword: string, width: number, 
     const cx = rand() * width;
     const cy = rand() * height;
     const r = 15 + rand() * 50;
-    shapes += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${w % 2 === 0 ? primary : accent}" opacity="${0.05 + rand() * 0.1}"/>`;
+    shapes += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${i % 2 === 0 ? primary : accent}" opacity="${0.05 + rand() * 0.1}"/>`;
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${shapes}</svg>`;
